@@ -551,7 +551,7 @@ function simulateMatchStats(roster) {
   // 基準勝率調降至 38%，基準戰力門檻拉高到 88 分，平均熟練度需達 0.65 以上才有過半勝率
   const profFactor = (avgProf - 0.55) * 0.55;
   const scoreFactor = (avgScore - 84) * 0.035;
-  let winRate = 0.50 + profFactor + scoreFactor;
+  let winRate = 0.46 + profFactor + scoreFactor;
   winRate = Math.min(0.92, Math.max(0.15, winRate)); // 限制在 10% ~ 85% 之間
 
   const isVictory = Math.random() < winRate;
@@ -561,8 +561,8 @@ function simulateMatchStats(roster) {
   const teamDeaths = isVictory ? Math.floor(Math.random() * 9) + 8 : Math.floor(Math.random() * 11) + 20;
 
   const roleWeights = {
-    "打野": { k: 0.32, a: 0.20, d: 0.20 },
-    "魔龍路": { k: 0.33, a: 0.18, d: 0.18 },
+    "打野": { k: 0.29, a: 0.20, d: 0.20 },
+    "魔龍路": { k: 0.31, a: 0.18, d: 0.18 },
     "中路": { k: 0.22, a: 0.26, d: 0.19 },
     "凱薩路": { k: 0.25, a: 0.22, d: 0.23 },
     "輔助": { k: 0.07, a: 0.40, d: 0.20 }
@@ -577,7 +577,7 @@ function simulateMatchStats(roster) {
     let a = Math.max(1, Math.round(teamKills * rw.a * (1 + profBonus * 0.4) + (Math.random() * 3 - 1)));
 
     // 評分 (純數值計算，不對外展現熟練度)
-    const rating = Math.min(16.0, Math.max(3.2, ((k * 3.4 + a * 2.1) / Math.max(1, d * 1.5)) + (item.prof * 3.0))).toFixed(1);
+    const rating = Math.min(20.0, Math.max(0.0, ((k * 3.4 + a * 2.1) / Math.max(1, d * 1.5)) + (item.prof * 3.0))).toFixed(1);
 
     return {
       ...item,
