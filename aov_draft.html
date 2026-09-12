@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>傳說對決 7人戰隊分路抽取系統</title>
+<style>
+  :root {
+    --bg-color: #0d1117;
+    --card-bg: #161b22;
+    --accent-blue: #1f6feb;
+    --accent-gold: #f1e05a;
+    --accent-red: #da3633;
+    --accent-green: #238636;
+    --border-color: #30363d;
+  }
+  body {
+    margin: 0;
+    background: var(--bg-color);
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  .app-container {
+    width: 100%;
+    max-width: 440px;
+    min-height: 100vh;
+    padding: 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { font-size: 1.35rem; margin: 6px 0; color: #58a6ff; text-align: center; }
+  .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 12px; text-align: center; }
+
+  /* 頂部狀態資訊 */
+  .status-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #21262d;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+  }
+  .reroll-tag {
+    color: var(--accent-gold);
+    font-weight: bold;
+  }
+
+  /* 當前抽取動態展示大卡片 */
+  .current-draw-card {
+    width: 100%;
+    background: linear-gradient(145deg, #1c2128, #161b22);
+    border: 2px solid #58a6ff;
+    border-radius: 12px;
+    padding: 18px 16px;
+    box-sizing: border-box;
+    margin-bottom: 16px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(31, 111, 235, 0.2);
+  }
+  .current-title { font-size: 0.85rem; color: #8b949e; margin-bottom: 6px; }
+  .current-player { font-size: 1.35rem; font-weight: bold; color: #f0f6fc; margin: 4px 0; }
+  .current-hero { font-size: 1.6rem; font-weight: bold; color: var(--accent-gold); margin: 6px 0; }
+  .current-meta { font-size: 0.9rem; color: #58a6ff; margin-top: 4px; }
+
+  /* 互動按鈕群 */
+  .control-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  button {
+    font-family: inherit;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-main {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 1.05rem;
+    box-shadow: 0 4px 12px rgba(31, 111, 235, 0.4);
+  }
+  .btn-confirm {
+    flex: 1.3;
+    padding: 12px;
+    background: var(--accent-green);
+    color: #fff;
+    font-size: 0.95rem;
+    box-shadow: 0 3px 10px rgba(35, 134, 54, 0.4);
+  }
+  .btn-reroll {
+    flex: 1;
+    padding: 12px;
+    background: #30363d;
+    color: var(--accent-gold);
+    font-size: 0.82rem;
+    border: 1px solid #484f58;
+  }
+  button:disabled {
+    background: #21262d !important;
+    color: #484f58 !important;
+    border-color: #30363d !important;
+    box-shadow: none !important;
+    cursor: not-allowed;
+  }
+
+  /* 五路陣容鎖定清單 */
+  .roster-title {
+    width: 100%;
+    font-size: 0.9rem;
+    color: #8b949e;
+    margin-bottom: 8px;
+    text-align: left;
+    font-weight: bold;
+  }
+  .slot-grid {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .slot-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .slot-card.locked {
+    border-color: #238636;
+    background: #101914;
+  }
+  .slot-label { font-size: 0.85rem; color: #8b949e; }
+  .slot-val { font-size: 1.05rem; font-weight: bold; color: #f0f6fc; margin-top: 2px; }
+
+  /* 結算海報彈窗 */
+  .result-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.92);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    z-index: 999;
+  }
+  canvas { width: 100%; max-width: 360px; border-radius: 12px; margin-bottom: 12px; }
+  .restart-btn {
+    background: #238636;
+    color: #fff;
+    padding: 11px 26px;
+    border: none;
+    border-radius: 20px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <h1>⚔️ 傳說對決 7人戰隊分路抽取</h1>
+  <div class="subtitle">英雄 2 次 / 玩家 2 次獨立重抽 · 排位生死戰</div>
+
+  <div class="status-bar">
+    <span>已鎖定：<strong id="stepIndicator">0 / 5</strong></span>
+    <span>
+      英雄重置：<span class="reroll-tag" id="rerollHeroDisplay">2</span> 次 ｜ 
+      玩家重置：<span class="reroll-tag" id="rerollPlayerDisplay">2</span> 次
+    </span>
+  </div>
+
+  <!-- 當前抽中即時展示區 -->
+  <div class="current-draw-card" id="drawCard">
+    <div class="current-title" id="cardPrompt">點擊下方按鈕開始抽取第 1 個位置</div>
+    <div class="current-player" id="cardPlayer">─</div>
+    <div class="current-hero" id="cardHero">等待抽籤</div>
+    <div class="current-meta" id="cardMeta">尚未指定分路</div>
+  </div>
+
+  <!-- 操作控制區 -->
+  <div class="control-section">
+    <button class="btn-main" id="startDrawBtn" onclick="handleStartDraw()">🎰 抽取新組合 (玩家 + 英雄)</button>
+
+    <div class="btn-row" id="decisionRow" style="display: none;">
+      <button class="btn-confirm" id="confirmBtn" onclick="handleConfirmPick()">✅ 確認鎖定</button>
+      <button class="btn-reroll" id="rerollHeroBtn" onclick="handleRerollHero()">🎲 重抽英雄 (2)</button>
+      <button class="btn-reroll" id="rerollPlayerBtn" onclick="handleRerollPlayer()">🎲 重抽玩家 (2)</button>
+    </div>
+  </div>
+
+  <!-- 五路鎖定狀態 -->
+  <div class="roster-title">📋 隊伍先發名冊</div>
+  <div class="slot-grid">
+    <div class="slot-card" id="slot-凱薩路">
+      <div>
+        <div class="slot-label">🛡️ 凱薩路 (DS Lane)</div>
+        <div class="slot-val" id="val-凱薩路">未指派</div>
+      </div>
+    </div>
+    <div class="slot-card" id="slot-打野">
+      <div>
+        <div class="slot-label">🌲 打野位 (Jungle)</div>
+        <div class="slot-val" id="val-打野">未指派</div>
+      </div>
+    </div>
+    <div class="slot-card" id="slot-中路">
+      <div>
+        <div class="slot-label">🧙 中路法師 (Mid Lane)</div>
+        <div class="slot-val" id="val-中路">未指派</div>
+      </div>
+    </div>
+    <div class="slot-card" id="slot-魔龍路">
+      <div>
+        <div class="slot-label">🏹 魔龍輸出 (Abyssal Lane)</div>
+        <div class="slot-val" id="val-魔龍路">未指派</div>
+      </div>
+    </div>
+    <div class="slot-card" id="slot-輔助">
+      <div>
+        <div class="slot-label">🤝 遊走輔助 (Support)</div>
+        <div class="slot-val" id="val-輔助">未指派</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 排位結算海報彈窗 -->
+<div class="result-modal" id="resultModal">
+  <canvas id="posterCanvas" width="720" height="1060"></canvas>
+  <button class="restart-btn" onclick="resetEntireGame()">再來一場排位賽 ↺</button>
+</div>
+
+<script>
+// 玩家名冊 (7人)
+const PLAYERS = ["宋逸勛", "賴冠豪", "黃柏儒", "李子源", "謝宗翰", "吳秉叡", "洪銘韓"];
+
+// 67 隻英雄完整名冊 (後台計算用，介面不顯示熟練度)
+const HEROES_DB = [
+  { name: "葉娜", roles: ["凱薩路"], base: 92, p: [0.7, 0.6, 0.6, 0.5, 0.4, 0.5, 0.9] },
+  { name: "弗洛倫", roles: ["凱薩路"], base: 95, p: [0.6, 0.5, 0.4, 0.4, 0.3, 0.4, 0.9] },
+  { name: "龍馬", roles: ["凱薩路", "打野"], base: 88, p: [0.7, 0.6, 0.6, 0.6, 0.5, 0.6, 0.8] },
+  { name: "霧己", roles: ["打野"], base: 86, p: [0.6, 0.5, 0.6, 0.5, 0.4, 0.5, 0.8] },
+  { name: "夏洛特", roles: ["凱薩路"], base: 90, p: [0.7, 0.6, 0.6, 0.6, 0.4, 0.6, 0.85] },
+  { name: "牛魔王", roles: ["輔助", "凱薩路"], base: 86, p: [0.7, 0.8, 0.5, 0.6, 0.4, 0.5, 0.7] },
+  { name: "筱清", roles: ["凱薩路"], base: 87, p: [0.6, 0.5, 0.5, 0.5, 0.4, 0.5, 0.8] },
+  { name: "薩尼", roles: ["輔助"], base: 88, p: [0.6, 0.85, 0.6, 0.6, 0.5, 0.6, 0.7] },
+  { name: "祖卡", roles: ["打野", "凱薩路"], base: 90, p: [0.7, 0.6, 0.6, 0.5, 0.6, 0.6, 0.9] },
+  { name: "司科德", roles: ["凱薩路"], base: 87, p: [0.6, 0.6, 0.6, 0.6, 0.5, 0.5, 0.8] },
+  { name: "馬洛斯", roles: ["輔助", "凱薩路"], base: 88, p: [0.7, 0.8, 0.6, 0.7, 0.5, 0.6, 0.8] },
+  { name: "瑞克", roles: ["凱薩路", "輔助"], base: 90, p: [0.7, 0.85, 0.6, 0.6, 0.5, 0.6, 0.85] },
+  { name: "夜叉", roles: ["凱薩路", "輔助"], base: 89, p: [0.7, 0.6, 0.6, 0.6, 0.4, 0.5, 0.85] },
+  { name: "朗博", roles: ["輔助"], base: 87, p: [0.6, 0.8, 0.6, 0.6, 0.4, 0.5, 0.7] },
+  { name: "科里納卡", roles: ["打野"], base: 87, p: [0.6, 0.6, 0.7, 0.6, 0.5, 0.6, 0.8] },
+  { name: "古木", roles: ["輔助"], base: 86, p: [0.6, 0.8, 0.5, 0.5, 0.4, 0.5, 0.7] },
+  { name: "瑪迦", roles: ["凱薩路", "打野"], base: 85, p: [0.6, 0.6, 0.6, 0.7, 0.4, 0.5, 0.7] },
+  { name: "凡恩", roles: ["魔龍路"], base: 88, p: [0.7, 0.7, 0.8, 0.6, 0.8, 0.7, 0.75] },
+  { name: "莫拉", roles: ["凱薩路", "打野"], base: 89, p: [0.6, 0.6, 0.6, 0.5, 0.5, 0.6, 0.9] },
+  { name: "愛里", roles: ["凱薩路"], base: 89, p: [0.6, 0.6, 0.6, 0.5, 0.4, 0.5, 0.85] },
+  { name: "比洛爾", roles: ["打野", "凱薩路"], base: 87, p: [0.6, 0.5, 0.6, 0.5, 0.4, 0.5, 0.8] },
+  { name: "塔拉", roles: ["凱薩路", "打野", "輔助"], base: 85, p: [0.6, 0.6, 0.6, 0.7, 0.5, 0.5, 0.7] },
+  { name: "拓冥", roles: ["凱薩路", "打野"], base: 87, p: [0.6, 0.5, 0.6, 0.5, 0.4, 0.5, 0.8] },
+  { name: "蘭鐸", roles: ["魔龍路", "打野"], base: 91, p: [0.5, 0.5, 0.6, 0.4, 0.4, 0.5, 0.85] },
+  { name: "洛里昂", roles: ["中路"], base: 89, p: [0.6, 0.6, 0.85, 0.6, 0.5, 0.75, 0.7] },
+  { name: "布萊恩", roles: ["凱薩路", "打野", "魔龍路"], base: 88, p: [0.6, 0.6, 0.7, 0.5, 0.6, 0.6, 0.8] },
+  { name: "蘇", roles: ["魔龍路"], base: 91, p: [0.75, 0.6, 0.7, 0.5, 0.7, 0.6, 0.8] },
+  { name: "瑟斐斯", roles: ["打野"], base: 87, p: [0.6, 0.6, 0.6, 0.6, 0.5, 0.6, 0.8] },
+  { name: "狂鐵", roles: ["凱薩路"], base: 88, p: [0.7, 0.6, 0.6, 0.6, 0.5, 0.5, 0.85] },
+  { name: "拉茲", roles: ["中路"], base: 90, p: [0.6, 0.6, 0.8, 0.5, 0.5, 0.75, 0.8] },
+  { name: "蘇離", roles: ["打野"], base: 86, p: [0.5, 0.5, 0.6, 0.5, 0.4, 0.5, 0.75] },
+  { name: "亥犽", roles: ["魔龍路"], base: 92, p: [0.8, 0.6, 0.75, 0.5, 0.7, 0.65, 0.8] },
+  { name: "克萊斯", roles: ["輔助"], base: 87, p: [0.6, 0.8, 0.5, 0.6, 0.5, 0.5, 0.7] },
+  { name: "菲尼克", roles: ["魔龍路", "打野"], base: 86, p: [0.7, 0.6, 0.65, 0.6, 0.6, 0.6, 0.7] },
+  { name: "莉莉安", roles: ["中路"], base: 92, p: [0.6, 0.6, 0.85, 0.6, 0.5, 0.8, 0.85] },
+  { name: "颯迦", roles: ["中路"], base: 90, p: [0.6, 0.5, 0.8, 0.5, 0.4, 0.7, 0.85] },
+  { name: "伊耿士", roles: ["中路"], base: 86, p: [0.6, 0.6, 0.8, 0.6, 0.5, 0.7, 0.6] },
+  { name: "勇", roles: ["魔龍路"], base: 87, p: [0.75, 0.6, 0.7, 0.5, 0.85, 0.65, 0.7] },
+  { name: "卡瑞茲", roles: ["輔助"], base: 88, p: [0.6, 0.85, 0.5, 0.5, 0.4, 0.5, 0.75] },
+  { name: "納克羅斯", roles: ["打野"], base: 91, p: [0.6, 0.5, 0.6, 0.4, 0.5, 0.5, 0.9] },
+  { name: "亞連", roles: ["凱薩路"], base: 89, p: [0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.85] },
+  { name: "森圖爾特", roles: ["魔龍路"], base: 89, p: [0.75, 0.6, 0.75, 0.5, 0.8, 0.7, 0.75] },
+  { name: "朵莉亞", roles: ["輔助"], base: 89, p: [0.6, 0.8, 0.6, 0.5, 0.4, 0.6, 0.7] },
+  { name: "莫托斯", roles: ["輔助", "凱薩路"], base: 85, p: [0.7, 0.7, 0.6, 0.6, 0.5, 0.5, 0.7] },
+  { name: "令月", roles: ["中路"], base: 89, p: [0.6, 0.5, 0.85, 0.5, 0.4, 0.7, 0.65] },
+  { name: "娜塔亞", roles: ["中路"], base: 86, p: [0.6, 0.6, 0.7, 0.6, 0.4, 0.8, 0.7] },
+  { name: "穆加爵", roles: ["中路"], base: 85, p: [0.7, 0.6, 0.7, 0.7, 0.5, 0.7, 0.6] },
+  { name: "伊格", roles: ["中路"], base: 90, p: [0.6, 0.6, 0.9, 0.6, 0.5, 0.7, 0.6] },
+  { name: "卡芬妮", roles: ["魔龍路"], base: 89, p: [0.7, 0.5, 0.6, 0.4, 0.95, 0.7, 0.7] },
+  { name: "綺羅", roles: ["打野"], base: 90, p: [0.4, 0.4, 0.9, 0.5, 0.4, 0.6, 0.6] },
+  { name: "蘿兒", roles: ["中路"], base: 91, p: [0.5, 0.5, 0.8, 0.5, 0.4, 0.9, 0.9] },
+  { name: "哥德爾", roles: ["中路", "輔助"], base: 87, p: [0.7, 0.6, 0.6, 0.5, 0.5, 0.6, 0.6] },
+  { name: "安格列", roles: ["凱薩路", "打野", "輔助"], base: 88, p: [0.7, 0.6, 0.7, 0.7, 0.5, 0.5, 0.7] },
+  { name: "堇", roles: ["魔龍路"], base: 89, p: [0.7, 0.6, 0.7, 0.5, 0.85, 0.7, 0.75] },
+  { name: "提米", roles: ["輔助"], base: 90, p: [0.5, 0.8, 0.5, 0.5, 0.4, 0.5, 0.6] },
+  { name: "元流之子", roles: ["魔龍路"], base: 88, p: [0.5, 0.6, 0.8, 0.4, 0.75, 0.7, 0.7] },
+  { name: "芽芽", roles: ["輔助", "中路"], base: 87, p: [0.7, 0.7, 0.6, 0.5, 0.5, 0.6, 0.7] },
+  { name: "艾翠絲", roles: ["打野"], base: 86, p: [0.4, 0.5, 0.4, 0.7, 0.3, 0.4, 0.4] },
+  { name: "銀晝", roles: ["輔助", "打野"], base: 88, p: [0.5, 0.9, 0.6, 0.4, 0.4, 0.6, 0.7] },
+  { name: "奎倫", roles: ["打野"], base: 88, p: [0.6, 0.5, 0.6, 0.4, 0.4, 0.5, 0.9] },
+  { name: "海諾", roles: ["中路", "凱薩路"], base: 89, p: [0.6, 0.6, 0.9, 0.6, 0.4, 0.7, 0.7] },
+  { name: "靈靈", roles: ["魔龍路"], base: 88, p: [0.85, 0.6, 0.7, 0.5, 0.8, 0.6, 0.6] },
+  { name: "渥馬爾", roles: ["輔助"], base: 85, p: [0.9, 0.7, 0.4, 0.5, 0.4, 0.4, 0.5] },
+  { name: "貝揚", roles: ["凱薩路"], base: 89, p: [0.6, 0.5, 0.5, 0.5, 0.4, 0.4, 0.9] },
+  { name: "盧蜜亞", roles: ["中路"], base: 88, p: [0.8, 0.6, 0.9, 0.5, 0.5, 0.8, 0.7] },
+  { name: "洛克", roles: ["打野"], base: 87, p: [0.6, 0.5, 0.5, 0.5, 0.9, 0.5, 0.6] },
+  { name: "依夏", roles: ["中路", "輔助"], base: 85, p: [0.5, 0.4, 0.5, 0.4, 0.4, 0.5, 1.0] }
+];
+
+// 【獨立額度：重抽英雄 2 次，重抽玩家 2 次】
+let heroRerollsLeft = 2;
+let playerRerollsLeft = 2;
+
+let lockedCount = 0;
+let lockedPlayers = new Set();
+let lockedHeroes = new Set();
+let lockedRoles = new Set();
+
+let currentCandidate = null;
+let savedRoster = [];
+
+// DOM
+const startDrawBtn = document.getElementById('startDrawBtn');
+const decisionRow = document.getElementById('decisionRow');
+const confirmBtn = document.getElementById('confirmBtn');
+const rerollHeroBtn = document.getElementById('rerollHeroBtn');
+const rerollPlayerBtn = document.getElementById('rerollPlayerBtn');
+const rerollHeroDisplay = document.getElementById('rerollHeroDisplay');
+const rerollPlayerDisplay = document.getElementById('rerollPlayerDisplay');
+const stepIndicator = document.getElementById('stepIndicator');
+
+const cardPrompt = document.getElementById('cardPrompt');
+const cardPlayer = document.getElementById('cardPlayer');
+const cardHero = document.getElementById('cardHero');
+const cardMeta = document.getElementById('cardMeta');
+
+function getAvailableRoles() {
+  const ALL_ROLES = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
+  return ALL_ROLES.filter(r => !lockedRoles.has(r));
+}
+
+function getAvailableHeroes() {
+  const availRoles = getAvailableRoles();
+  return HEROES_DB.filter(h => {
+    if (lockedHeroes.has(h.name)) return false;
+    return h.roles.some(r => availRoles.includes(r));
+  });
+}
+
+function getAvailablePlayers() {
+  return PLAYERS.filter(p => !lockedPlayers.has(p));
+}
+
+function resolveRoleForHero(hero) {
+  const availRoles = getAvailableRoles();
+  const matched = hero.roles.filter(r => availRoles.includes(r));
+  return matched[Math.floor(Math.random() * matched.length)];
+}
+
+function renderCurrentCard() {
+  if (!currentCandidate) return;
+  const { player, hero, assignedRole } = currentCandidate;
+  cardPlayer.innerText = `選手：${player}`;
+  cardHero.innerText = hero.name;
+  cardMeta.innerText = `出戰路線：【${assignedRole}】`;
+
+  updateRerollButtons();
+}
+
+function updateRerollButtons() {
+  rerollHeroDisplay.innerText = heroRerollsLeft;
+  rerollPlayerDisplay.innerText = playerRerollsLeft;
+
+  if (heroRerollsLeft > 0) {
+    rerollHeroBtn.disabled = false;
+    rerollHeroBtn.innerText = `🎲 重抽英雄 (${heroRerollsLeft})`;
+  } else {
+    rerollHeroBtn.disabled = true;
+    rerollHeroBtn.innerText = `🎲 重抽英雄 (0)`;
+  }
+
+  if (playerRerollsLeft > 0) {
+    rerollPlayerBtn.disabled = false;
+    rerollPlayerBtn.innerText = `🎲 重抽玩家 (${playerRerollsLeft})`;
+  } else {
+    rerollPlayerBtn.disabled = true;
+    rerollPlayerBtn.innerText = `🎲 重抽玩家 (0)`;
+  }
+}
+
+// 1. 開始抽取
+function handleStartDraw() {
+  startDrawBtn.disabled = true;
+  decisionRow.style.display = "none";
+  cardPrompt.innerText = `正在為第 ${lockedCount + 1} 個位置挑選選手與英雄…`;
+
+  const availHeroes = getAvailableHeroes();
+  const availPlayers = getAvailablePlayers();
+
+  let count = 0;
+  const timer = setInterval(() => {
+    const tHero = availHeroes[Math.floor(Math.random() * availHeroes.length)];
+    const tPlayer = availPlayers[Math.floor(Math.random() * availPlayers.length)];
+    cardPlayer.innerText = `選手：${tPlayer}`;
+    cardHero.innerText = tHero.name;
+    cardMeta.innerText = `挑選中…`;
+    count++;
+
+    if (count > 10) {
+      clearInterval(timer);
+      const pickedHero = availHeroes[Math.floor(Math.random() * availHeroes.length)];
+      const pickedPlayer = availPlayers[Math.floor(Math.random() * availPlayers.length)];
+      setCandidate(pickedPlayer, pickedHero);
+
+      cardPrompt.innerText = `請選擇鎖定或使用獨立重抽額度：`;
+      decisionRow.style.display = "flex";
+      confirmBtn.disabled = false;
+    }
+  }, 60);
+}
+
+function setCandidate(player, hero) {
+  const assignedRole = resolveRoleForHero(hero);
+  const pIndex = PLAYERS.indexOf(player);
+  const prof = hero.p[pIndex];
+  const finalScore = Math.round(hero.base * (0.65 + prof * 0.45));
+
+  currentCandidate = { player, hero, assignedRole, prof, finalScore };
+  renderCurrentCard();
+}
+
+// 2. 🎲 重抽英雄
+function handleRerollHero() {
+  if (heroRerollsLeft <= 0) return;
+  heroRerollsLeft--;
+  rerollHeroBtn.disabled = true;
+  rerollPlayerBtn.disabled = true;
+  confirmBtn.disabled = true;
+
+  const availHeroes = getAvailableHeroes().filter(h => h.name !== currentCandidate.hero.name);
+  let count = 0;
+  const timer = setInterval(() => {
+    const tHero = availHeroes[Math.floor(Math.random() * availHeroes.length)];
+    cardHero.innerText = tHero.name;
+    count++;
+    if (count > 8) {
+      clearInterval(timer);
+      const newHero = availHeroes[Math.floor(Math.random() * availHeroes.length)];
+      setCandidate(currentCandidate.player, newHero);
+      confirmBtn.disabled = false;
+    }
+  }, 60);
+}
+
+// 3. 🎲 重抽玩家
+function handleRerollPlayer() {
+  if (playerRerollsLeft <= 0) return;
+  playerRerollsLeft--;
+  rerollHeroBtn.disabled = true;
+  rerollPlayerBtn.disabled = true;
+  confirmBtn.disabled = true;
+
+  const availPlayers = getAvailablePlayers().filter(p => p !== currentCandidate.player);
+  let count = 0;
+  const timer = setInterval(() => {
+    const tPlayer = availPlayers[Math.floor(Math.random() * availPlayers.length)];
+    cardPlayer.innerText = `選手：${tPlayer}`;
+    count++;
+    if (count > 8) {
+      clearInterval(timer);
+      const newPlayer = availPlayers[Math.floor(Math.random() * availPlayers.length)];
+      setCandidate(newPlayer, currentCandidate.hero);
+      confirmBtn.disabled = false;
+    }
+  }, 60);
+}
+
+// 4. ✅ 確認鎖定
+function handleConfirmPick() {
+  const { player, hero, assignedRole } = currentCandidate;
+
+  lockedPlayers.add(player);
+  lockedHeroes.add(hero.name);
+  lockedRoles.add(assignedRole);
+  lockedCount++;
+  savedRoster.push({ ...currentCandidate });
+
+  const slotEl = document.getElementById(`slot-${assignedRole}`);
+  const valEl = document.getElementById(`val-${assignedRole}`);
+
+  slotEl.classList.add('locked');
+  valEl.innerText = `${player}  ─  ${hero.name}`;
+  valEl.style.color = "#58a6ff";
+
+  stepIndicator.innerText = `${lockedCount} / 5`;
+  decisionRow.style.display = "none";
+
+  if (lockedCount < 5) {
+    cardPrompt.innerText = `第 ${lockedCount} 個位置已鎖定！請繼續抽取下個位置`;
+    cardPlayer.innerText = `─`;
+    cardHero.innerText = `待抽取…`;
+    cardMeta.innerText = `剩餘可用路線：${getAvailableRoles().join('、')}`;
+
+    startDrawBtn.disabled = false;
+    startDrawBtn.innerText = `🎰 抽取第 ${lockedCount + 1} 個位置`;
+  } else {
+    cardPrompt.innerText = `🎉 先發五人集結完畢，準備開戰！`;
+    startDrawBtn.style.display = "block";
+    startDrawBtn.disabled = false;
+    startDrawBtn.innerText = `⚔️ 進行排位實戰對決`;
+    startDrawBtn.onclick = generateMatchResultPoster;
+  }
+}
+
+// 5. 實戰排位模擬與 KDA 產生演算法 (增加勝利難度)
+function simulateMatchStats(roster) {
+  let totalScore = 0;
+  let totalProf = 0;
+  roster.forEach(r => {
+    totalScore += r.finalScore;
+    totalProf += r.prof;
+  });
+  const avgScore = totalScore / 5;
+  const avgProf = totalProf / 5;
+
+  // 【提高獲勝難度】：
+  // 基準勝率調降至 38%，基準戰力門檻拉高到 88 分，平均熟練度需達 0.65 以上才有過半勝率
+  const profFactor = (avgProf - 0.65) * 0.55;
+  const scoreFactor = (avgScore - 88) * 0.035;
+  let winRate = 0.38 + profFactor + scoreFactor;
+  winRate = Math.min(0.85, Math.max(0.10, winRate)); // 限制在 10% ~ 85% 之間
+
+  const isVictory = Math.random() < winRate;
+
+  // 人頭比分
+  const teamKills = isVictory ? Math.floor(Math.random() * 11) + 20 : Math.floor(Math.random() * 8) + 8;
+  const teamDeaths = isVictory ? Math.floor(Math.random() * 9) + 8 : Math.floor(Math.random() * 11) + 20;
+
+  const roleWeights = {
+    "打野": { k: 0.32, a: 0.20, d: 0.20 },
+    "魔龍路": { k: 0.33, a: 0.18, d: 0.18 },
+    "中路": { k: 0.22, a: 0.26, d: 0.19 },
+    "凱薩路": { k: 0.10, a: 0.16, d: 0.23 },
+    "輔助": { k: 0.03, a: 0.36, d: 0.20 }
+  };
+
+  let playerStats = roster.map(item => {
+    const rw = roleWeights[item.assignedRole] || { k: 0.2, a: 0.2, d: 0.2 };
+    const profBonus = (item.prof - 0.5); 
+
+    let k = Math.max(0, Math.round(teamKills * rw.k * (1 + profBonus * 0.55) + (Math.random() * 2 - 1)));
+    let d = Math.max(0, Math.round(teamDeaths * rw.d * (1 - profBonus * 0.65) + (Math.random() * 2 - 1)));
+    let a = Math.max(1, Math.round(teamKills * rw.a * (1 + profBonus * 0.4) + (Math.random() * 3 - 1)));
+
+    // 評分 (純數值計算，不對外展現熟練度)
+    const rating = Math.min(16.0, Math.max(3.2, ((k * 3.4 + a * 2.1) / Math.max(1, d * 1.5)) + (item.prof * 3.0))).toFixed(1);
+
+    return {
+      ...item,
+      k, d, a,
+      kdaStr: `${k} / ${d} / ${a}`,
+      rating: parseFloat(rating)
+    };
+  });
+
+  // 挑選 MVP
+  let mvpIndex = 0;
+  let maxRating = -1;
+  playerStats.forEach((p, idx) => {
+    if (p.rating > maxRating) {
+      maxRating = p.rating;
+      mvpIndex = idx;
+    }
+  });
+  playerStats[mvpIndex].isMvp = true;
+
+  return { isVictory, playerStats, teamKills, teamDeaths };
+}
+
+// 6. 繪製排位戰績海報 (不顯示熟練度)
+function generateMatchResultPoster() {
+  const canvas = document.getElementById('posterCanvas');
+  const ctx = canvas.getContext('2d');
+  const modal = document.getElementById('resultModal');
+  modal.style.display = 'flex';
+
+  const simResult = simulateMatchStats(savedRoster);
+  const { isVictory, playerStats, teamKills, teamDeaths } = simResult;
+
+  // 背景
+  ctx.fillStyle = "#0b0e14";
+  ctx.fillRect(0, 0, 720, 1060);
+
+  // 頂部勝敗橫幅
+  const bannerColor = isVictory ? "#238636" : "#da3633";
+  ctx.fillStyle = bannerColor;
+  ctx.fillRect(0, 0, 720, 150);
+
+  // 勝負大字
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 68px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(isVictory ? "VICTORY 勝利" : "DEFEAT 敗北", 360, 95);
+
+  // 戰報小標 (不洩露戰力)
+  ctx.font = "bold 21px sans-serif";
+  ctx.fillStyle = isVictory ? "#a6e3a1" : "#f5c2e7";
+  ctx.fillText(`排位爭奪戰 · 團隊總比分 ${teamKills} : ${teamDeaths}`, 360, 134);
+
+  // 繪製五位選手戰績卡
+  ctx.textAlign = "left";
+  const startY = 175;
+  const roleOrder = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
+  
+  const sortedStats = roleOrder.map(r => playerStats.find(p => p.assignedRole === r));
+
+  sortedStats.forEach((p, idx) => {
+    const y = startY + (idx * 152);
+
+    // 卡片背景
+    ctx.fillStyle = "#161b22";
+    ctx.roundRect(30, y, 660, 136, 14);
+    ctx.fill();
+
+    // 邊框
+    ctx.lineWidth = p.isMvp ? 3 : 1;
+    ctx.strokeStyle = p.isMvp ? "#f1e05a" : "#30363d";
+    ctx.stroke();
+
+    // 分路與選手
+    ctx.fillStyle = "#58a6ff";
+    ctx.font = "bold 23px sans-serif";
+    ctx.fillText(`【${p.assignedRole}】`, 50, y + 42);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px sans-serif";
+    ctx.fillText(`${p.player} ─ ${p.hero.name}`, 160, y + 42);
+
+    // MVP 標籤
+    if (p.isMvp) {
+      ctx.fillStyle = "#f1e05a";
+      ctx.font = "900 22px sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(isVictory ? "★ MVP" : "★ 敗方 MVP", 670, y + 42);
+      ctx.textAlign = "left";
+    }
+
+    // 分隔線
+    ctx.strokeStyle = "#21262d";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(50, y + 62);
+    ctx.lineTo(670, y + 62);
+    ctx.stroke();
+
+    // KDA 數據標籤 (隱藏熟練度)
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "18px sans-serif";
+    ctx.fillText("戰績 KDA", 60, y + 94);
+    ctx.fillText("局內評分", 540, y + 94);
+
+    // KDA 數值
+    ctx.fillStyle = "#f0f6fc";
+    ctx.font = "900 25px sans-serif";
+    ctx.fillText(p.kdaStr, 60, y + 124);
+
+    // 局內評分
+    ctx.fillStyle = p.isMvp ? "#f1e05a" : "#ffffff";
+    ctx.font = "900 25px sans-serif";
+    ctx.fillText(p.rating.toFixed(1), 540, y + 124);
+  });
+
+  // 底部說明
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#8b949e";
+  ctx.font = "17px sans-serif";
+  ctx.fillText(`重抽消耗：英雄 ${2 - heroRerollsLeft}/2 次 ｜ 玩家 ${2 - playerRerollsLeft}/2 次`, 360, 980);
+
+  ctx.fillStyle = "#58a6ff";
+  ctx.font = "17px sans-serif";
+  ctx.fillText("長按保存排位戰報海報，分享開戰結果！", 360, 1020);
+}
+
+// 7. 重置整局遊戲
+function resetEntireGame() {
+  heroRerollsLeft = 2;
+  playerRerollsLeft = 2;
+  lockedCount = 0;
+  lockedPlayers.clear();
+  lockedHeroes.clear();
+  lockedRoles.clear();
+  currentCandidate = null;
+  savedRoster = [];
+
+  document.getElementById('resultModal').style.display = 'none';
+  stepIndicator.innerText = "0 / 5";
+  rerollHeroDisplay.innerText = "2";
+  rerollPlayerDisplay.innerText = "2";
+
+  cardPrompt.innerText = "點擊下方按鈕開始抽取第 1 個位置";
+  cardPlayer.innerText = "─";
+  cardHero.innerText = "等待抽籤";
+  cardMeta.innerText = "尚未指定分路";
+
+  decisionRow.style.display = "none";
+  startDrawBtn.style.display = "block";
+  startDrawBtn.disabled = false;
+  startDrawBtn.innerText = "🎰 抽取新組合 (玩家 + 英雄)";
+  startDrawBtn.onclick = handleStartDraw;
+
+  const ALL_ROLES = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
+  ALL_ROLES.forEach(r => {
+    const slotEl = document.getElementById(`slot-${r}`);
+    slotEl.classList.remove('locked');
+    document.getElementById(`val-${r}`).innerText = "未指派";
+    document.getElementById(`val-${r}`).style.color = "#f0f6fc";
+  });
+}
+</script>
+</body>
+</html>
