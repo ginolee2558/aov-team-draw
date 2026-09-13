@@ -824,6 +824,7 @@ function checkBothReady() {
 }
 
 // --- 雙人實戰模擬計算 ---
+// --- 雙人實戰模擬計算 (平滑 KDA 差距 + 強化盡力與躺分機制) ---
 function simulatePvpMatch(blueRoster, redRoster) {
   let blueScore = 0, blueProf = 0;
   blueRoster.forEach(r => { blueScore += r.finalScore; blueProf += r.prof; });
@@ -839,8 +840,9 @@ function simulatePvpMatch(blueRoster, redRoster) {
 
   const blueWinsThisGame = Math.random() < blueWinRate;
 
-  const winK = Math.floor(Math.random() * 8) + 18;
-  const loseK = Math.floor(Math.random() * 7) + 8;
+  // 縮小勝負方擊殺差距，模擬拉鋸戰局
+  const winK = Math.floor(Math.random() * 6) + 16;  // 16 ~ 21 殺
+  const loseK = Math.floor(Math.random() * 6) + 11; // 11 ~ 16 殺
 
   const blueKills = blueWinsThisGame ? winK : loseK;
   const redKills = blueWinsThisGame ? loseK : winK;
@@ -856,16 +858,35 @@ function simulatePvpMatch(blueRoster, redRoster) {
   function genStats(roster, isWinner, teamK, teamD) {
     return roster.map(item => {
       const rw = roleWeights[item.assignedRole] || { k: 0.2, a: 0.2, d: 0.2 };
-      const profBonus = (item.prof - 0.5);
-      let k = Math.max(0, Math.round(teamK * rw.k * (1 + profBonus * 0.45) + (Math.random() * 1.6 - 0.8)));
-      let d = Math.max(0, Math.round(teamD * rw.d * (1 - profBonus * 0.50) + (Math.random() * 1.4 - 0.7)));
-      let a = Math.max(0, Math.round(teamK * rw.a * (1 + profBonus * 0.35) + (Math.random() * 2.0 - 1.0)));
+      
+      // profDiff 範圍約 -0.4 ~ +0.5 (以 0.5 為基準)
+      const profDiff = item.prof - 0.5;
+
+      // 熟練度高者：高參戰、低暴斃（盡力）；熟練度低者：傷害低、容易陣亡（躺分/戰犯）
+      const killMultiplier = Math.max(0.2, 1 + profDiff * 0.95);
+      const assistMultiplier = Math.max(0.2, 1 + profDiff * 0.70);
+      const deathMultiplier = Math.max(0.35, 1 - profDiff * 1.10);
+
+      let k = Math.max(0, Math.round(teamK * rw.k * killMultiplier + (Math.random() * 1.6 - 0.8)));
+      let d = Math.max(0, Math.round(teamD * rw.d * deathMultiplier + (Math.random() * 1.4 - 0.7)));
+      let a = Math.max(0, Math.round(teamK * rw.a * assistMultiplier + (Math.random() * 2.0 - 1.0)));
+
+      // 敗方高熟練度孤勇者保底不至 0 殺，勝方極低熟練度選手保底多送 1~2 次
+      if (!isWinner && item.prof >= 0.7 && k === 0) k = 1;
+      if (isWinner && item.prof <= 0.3 && d <= 1) d += 2;
 
       const effectiveDeath = Math.max(1, d);
-      const rawRatio = (k * 3.0 + a * 1.8) / (effectiveDeath * 1.3);
-      let rating = 4.2 + (rawRatio * 0.75) + (item.prof * 2.5);
-      if (!isWinner) rating *= 0.88;
-      rating = parseFloat(Math.min(14.5, Math.max(3.8, rating)).toFixed(1));
+      const rawRatio = (k * 2.6 + a * 1.5) / (effectiveDeath * 1.2);
+      
+      // 計算綜合評分：弱化勝負硬折扣，強化個人表現與熟練度
+      let rating = 4.0 + (rawRatio * 0.65) + (item.prof * 3.0);
+      if (isWinner) {
+        rating += 0.6; // 勝方勝場微幅加成
+      } else {
+        rating -= 0.4; // 敗方些微扣分，但優秀發揮依然能拿高分
+      }
+
+      rating = parseFloat(Math.min(14.5, Math.max(3.5, rating)).toFixed(1));
 
       return { ...item, k, d, a, kdaStr: `${k}/${d}/${a}`, rating };
     });
@@ -874,7 +895,7 @@ function simulatePvpMatch(blueRoster, redRoster) {
   const blueStats = genStats(blueRoster, blueWinsThisGame, blueKills, redKills);
   const redStats = genStats(redRoster, !blueWinsThisGame, redKills, blueKills);
 
-  // 選出勝方 MVP 與敗方 MVP (SVP)
+  // 選出勝方 MVP 與敗方 SVP
   const winTeamStats = blueWinsThisGame ? blueStats : redStats;
   const loseTeamStats = blueWinsThisGame ? redStats : blueStats;
 
