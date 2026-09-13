@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>傳說對決 7人戰隊分路抽取系統 - Bo7 冠軍賽模式</title>
+<title>傳說對決 7人戰隊雙人連線 Bo7 冠軍賽</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   :root {
     --bg-color: #0d1117;
@@ -26,23 +27,68 @@
     width: 100%;
     max-width: 440px;
     min-height: 100vh;
-    padding: 16px;
+    padding: 14px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
   }
-  h1 { font-size: 1.35rem; margin: 6px 0; color: #58a6ff; text-align: center; }
-  .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 10px; text-align: center; }
+  h1 { font-size: 1.3rem; margin: 4px 0; color: #58a6ff; text-align: center; }
+  .subtitle { font-size: 0.78rem; color: #8b949e; margin-bottom: 10px; text-align: center; }
 
-  /* Bo7 比分面板 */
+  /* 連線房間卡片 */
+  .lobby-card {
+    width: 100%;
+    background: #1c2128;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .lobby-title { font-size: 0.9rem; font-weight: bold; color: #f0f6fc; margin-bottom: 8px; }
+  .room-inputs {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  input[type="text"] {
+    background: #0d1117;
+    border: 1px solid var(--border-color);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    width: 130px;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  .room-id-tag {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: var(--accent-gold);
+    letter-spacing: 2px;
+    margin: 4px 0;
+  }
+  .role-indicator {
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-top: 4px;
+  }
+  .role-blue { color: #58a6ff; }
+  .role-red { color: #f85149; }
+
+  /* Bo7 比分看板 */
   .bo7-scoreboard {
     width: 100%;
     background: linear-gradient(180deg, #1f242c, #161b22);
     border: 1px solid var(--border-color);
     border-radius: 10px;
     padding: 10px 14px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -50,7 +96,7 @@
   }
   .team-box { text-align: center; flex: 1; }
   .team-name { font-size: 0.8rem; color: #8b949e; font-weight: bold; }
-  .team-score { font-size: 1.8rem; font-weight: 900; }
+  .team-score { font-size: 1.7rem; font-weight: 900; }
   .score-blue { color: #58a6ff; }
   .score-red { color: #f85149; }
   .vs-badge {
@@ -63,6 +109,19 @@
     color: var(--accent-gold);
   }
 
+  .bp-banner {
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(241, 224, 90, 0.1);
+    border: 1px solid rgba(241, 224, 90, 0.3);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    color: var(--accent-gold);
+    box-sizing: border-box;
+    text-align: center;
+  }
+
   .status-bar {
     width: 100%;
     display: flex;
@@ -71,140 +130,73 @@
     background: #21262d;
     padding: 8px 12px;
     border-radius: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     font-size: 0.82rem;
     box-sizing: border-box;
     border: 1px solid var(--border-color);
   }
-  .reroll-tag {
-    color: var(--accent-gold);
-    font-weight: bold;
-  }
+  .reroll-tag { color: var(--accent-gold); font-weight: bold; }
 
-  /* 當前抽取卡片 */
+  /* 抽籤展示卡片 */
   .current-draw-card {
     width: 100%;
     background: linear-gradient(145deg, #1c2128, #161b22);
     border: 2px solid #58a6ff;
     border-radius: 12px;
-    padding: 18px 16px;
+    padding: 16px;
     box-sizing: border-box;
-    margin-bottom: 16px;
-    text-align: center;
-    box-shadow: 0 4px 20px rgba(31, 111, 235, 0.2);
-  }
-  .current-title { font-size: 0.85rem; color: #8b949e; margin-bottom: 6px; }
-  .current-player { font-size: 1.35rem; font-weight: bold; color: #f0f6fc; margin: 4px 0; }
-  .current-hero { font-size: 1.6rem; font-weight: bold; color: var(--accent-gold); margin: 6px 0; }
-  .current-meta { font-size: 0.9rem; color: #58a6ff; margin-top: 4px; }
-
-  /* 提示標籤 */
-  .bp-banner {
-    width: 100%;
-    padding: 6px 10px;
-    background: rgba(241, 224, 90, 0.1);
-    border: 1px solid rgba(241, 224, 90, 0.3);
-    border-radius: 6px;
-    margin-bottom: 12px;
-    font-size: 0.78rem;
-    color: var(--accent-gold);
-    box-sizing: border-box;
+    margin-bottom: 14px;
     text-align: center;
   }
+  .current-title { font-size: 0.82rem; color: #8b949e; margin-bottom: 4px; }
+  .current-player { font-size: 1.3rem; font-weight: bold; color: #f0f6fc; margin: 4px 0; }
+  .current-hero { font-size: 1.55rem; font-weight: bold; color: var(--accent-gold); margin: 4px 0; }
+  .current-meta { font-size: 0.85rem; color: #58a6ff; }
 
-  .control-section {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 20px;
-  }
-  .btn-row {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-  }
+  /* 按鈕控制 */
+  .control-section { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .btn-row { display: flex; gap: 8px; width: 100%; }
   button {
     font-family: inherit;
     font-weight: bold;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
   }
-  .btn-main {
-    width: 100%;
-    padding: 14px;
-    background: var(--accent-blue);
-    color: #fff;
-    font-size: 1.05rem;
-    box-shadow: 0 4px 12px rgba(31, 111, 235, 0.4);
-  }
-  .btn-confirm {
-    flex: 1.3;
-    padding: 12px;
-    background: var(--accent-green);
-    color: #fff;
-    font-size: 0.95rem;
-    box-shadow: 0 3px 10px rgba(35, 134, 54, 0.4);
-  }
-  .btn-reroll {
-    flex: 1;
-    padding: 12px;
-    background: #30363d;
-    color: var(--accent-gold);
-    font-size: 0.82rem;
-    border: 1px solid #484f58;
-  }
-  button:disabled {
-    background: #21262d !important;
-    color: #484f58 !important;
-    border-color: #30363d !important;
-    box-shadow: none !important;
-    cursor: not-allowed;
-  }
+  .btn-blue { background: var(--accent-blue); color: #fff; padding: 10px 14px; }
+  .btn-main { width: 100%; padding: 13px; background: var(--accent-blue); color: #fff; font-size: 1rem; }
+  .btn-confirm { flex: 1.3; padding: 11px; background: var(--accent-green); color: #fff; font-size: 0.9rem; }
+  .btn-reroll { flex: 1; padding: 11px; background: #30363d; color: var(--accent-gold); font-size: 0.8rem; border: 1px solid #484f58; }
+  .btn-ready { width: 100%; padding: 14px; background: #8957e5; color: #fff; font-size: 1.05rem; }
+  button:disabled { background: #21262d !important; color: #484f58 !important; border-color: #30363d !important; cursor: not-allowed; }
 
-  .roster-title {
-    width: 100%;
-    font-size: 0.9rem;
-    color: #8b949e;
-    margin-bottom: 8px;
-    text-align: left;
-    font-weight: bold;
-  }
-  .slot-grid {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 20px;
-  }
+  /* 五路名單 */
+  .roster-title { width: 100%; font-size: 0.88rem; color: #8b949e; margin-bottom: 8px; font-weight: bold; }
+  .slot-grid { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
   .slot-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 10px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
-  .slot-card.locked {
-    border-color: #238636;
-    background: #101914;
-  }
-  .slot-label { font-size: 0.85rem; color: #8b949e; }
-  .slot-val { font-size: 1.05rem; font-weight: bold; color: #f0f6fc; margin-top: 2px; }
+  .slot-card.locked { border-color: #238636; background: #101914; }
+  .slot-label { font-size: 0.82rem; color: #8b949e; }
+  .slot-val { font-size: 1rem; font-weight: bold; color: #f0f6fc; margin-top: 2px; }
 
-  /* 彈窗 */
+  /* 結算彈窗 */
   .result-modal {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.92);
+    background: rgba(0, 0, 0, 0.94);
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 14px;
+    padding: 12px;
     z-index: 999;
   }
   canvas { width: 100%; max-width: 360px; border-radius: 12px; margin-bottom: 12px; }
@@ -223,28 +215,49 @@
 <body>
 
 <div class="app-container">
-  <h1>🏆 傳說對決 職業冠軍賽 (Bo7)</h1>
-  <div class="subtitle">全局 BP 模式 (角色用過即鎖 · 第七場巔峰對決)</div>
+  <h1>🏆 傳說對決 雙人連線 Bo7 冠軍賽</h1>
+  <div class="subtitle">WebRTC 跨裝置連線 · 全局 BP (角色用過即鎖 · 第七局巔峰對決)</div>
 
-  <!-- 比分看板 -->
+  <!-- 連線房間面板 -->
+  <div class="lobby-card" id="lobbyCard">
+    <div id="roomInitial">
+      <div class="lobby-title">建立或加入對決房間</div>
+      <div style="display: flex; gap: 8px; justify-content: center;">
+        <button class="btn-blue" onclick="createRoom()">👑 創建新房間 (藍方)</button>
+      </div>
+      <div style="margin: 8px 0; color: #8b949e; font-size: 0.78rem;">── 或 ──</div>
+      <div class="room-inputs">
+        <input type="text" id="joinRoomInput" placeholder="輸入 4 碼房間號" maxlength="4">
+        <button class="btn-blue" onclick="joinRoom()">加入房間 (紅方)</button>
+      </div>
+    </div>
+    <div id="roomConnected" style="display: none;">
+      <div style="font-size: 0.82rem; color: #8b949e;">房間號碼</div>
+      <div class="room-id-tag" id="displayRoomId">----</div>
+      <div class="role-indicator" id="roleIndicator">連線就緒</div>
+      <div style="font-size: 0.8rem; color: #3fb950; margin-top: 4px;" id="oppStatusText">對手已連線，各自抽卡選角中</div>
+    </div>
+  </div>
+
+  <!-- Bo7 比分看板 -->
   <div class="bo7-scoreboard">
     <div class="team-box">
-      <div class="team-name">我方戰隊 (YOU)</div>
+      <div class="team-name">藍方陣容 (房主)</div>
       <div class="team-score score-blue" id="blueScore">0</div>
     </div>
     <div class="vs-badge" id="matchRoundBadge">Game 1 / Bo7</div>
     <div class="team-box">
-      <div class="team-name">對手戰隊 (OPP)</div>
+      <div class="team-name">紅方陣容 (挑戰者)</div>
       <div class="team-score score-red" id="redScore">0</div>
     </div>
   </div>
 
   <div class="bp-banner" id="bpInfoBanner">
-    🛡️ 全局 BP 生效中：已使用 0 隻英雄（第七局將解禁）
+    🛡️ 全局 BP 生效中：本方已鎖定 0 隻英雄（第七局解禁）
   </div>
 
   <div class="status-bar">
-    <span>已鎖定：<strong id="stepIndicator">0 / 5</strong></span>
+    <span>本局已鎖定：<strong id="stepIndicator">0 / 5</strong></span>
     <span>
       英雄重置：<span class="reroll-tag" id="rerollHeroDisplay">2</span> 次 ｜ 
       玩家重置：<span class="reroll-tag" id="rerollPlayerDisplay">2</span> 次
@@ -252,23 +265,25 @@
   </div>
 
   <div class="current-draw-card" id="drawCard">
-    <div class="current-title" id="cardPrompt">點擊下方按鈕開始抽取第 1 個位置</div>
+    <div class="current-title" id="cardPrompt">請先完成房間連線後開始抽取</div>
     <div class="current-player" id="cardPlayer">─</div>
     <div class="current-hero" id="cardHero">等待抽籤</div>
     <div class="current-meta" id="cardMeta">尚未指定分路</div>
   </div>
 
   <div class="control-section">
-    <button class="btn-main" id="startDrawBtn" onclick="handleStartDraw()">🎰 抽取新組合 (玩家 + 英雄)</button>
+    <button class="btn-main" id="startDrawBtn" onclick="handleStartDraw()" disabled>🎰 抽取本方先發 (玩家 + 英雄)</button>
 
     <div class="btn-row" id="decisionRow" style="display: none;">
       <button class="btn-confirm" id="confirmBtn" onclick="handleConfirmPick()">✅ 確認鎖定</button>
       <button class="btn-reroll" id="rerollHeroBtn" onclick="handleRerollHero()">🎲 重抽英雄 (2)</button>
       <button class="btn-reroll" id="rerollPlayerBtn" onclick="handleRerollPlayer()">🎲 重抽玩家 (2)</button>
     </div>
+
+    <button class="btn-ready" id="readyBtn" style="display: none;" onclick="handleReady()">⚔️ 陣容確認完畢！準備開戰</button>
   </div>
 
-  <div class="roster-title">📋 本局先發五人名單</div>
+  <div class="roster-title">📋 本方本局先發出戰名冊</div>
   <div class="slot-grid">
     <div class="slot-card" id="slot-凱薩路">
       <div>
@@ -305,7 +320,7 @@
 
 <div class="result-modal" id="resultModal">
   <canvas id="posterCanvas" width="720" height="1060"></canvas>
-  <button class="modal-btn" id="modalActionBtn" onclick="handleModalNextAction()">下一場對決 ➔</button>
+  <button class="modal-btn" id="modalActionBtn" onclick="handleModalNextAction()">進入下一場對決 ➔</button>
 </div>
 
 <script>
@@ -385,10 +400,29 @@ const HEROES_DB = [
 let currentGameRound = 1;
 let blueWins = 0;
 let redWins = 0;
-let globalBannedHeroes = new Set();
-let bo7PlayerRecords = {};
+let myBannedHeroes = new Set(); // 我方用過的英雄封鎖
 
-// 本小局狀態
+// 統計各選手在藍隊/紅隊的 MVP 累積（FMVP 依據）
+let bluePlayerStatsRecord = {};
+let redPlayerStatsRecord = {};
+
+function initRecords() {
+  PLAYERS.forEach(p => {
+    bluePlayerStatsRecord[p] = { mvpCount: 0, totalRating: 0, games: 0 };
+    redPlayerStatsRecord[p] = { mvpCount: 0, totalRating: 0, games: 0 };
+  });
+}
+initRecords();
+
+// 連線變數
+let peer = null;
+let conn = null;
+let isHost = false; // 是否為藍方房主
+let myReady = false;
+let oppReady = false;
+let oppRoster = null;
+
+// 選角抽籤狀態
 let heroRerollsLeft = 2;
 let playerRerollsLeft = 2;
 let lockedCount = 0;
@@ -399,7 +433,7 @@ let drawnPlayersThisSlot = new Set();
 let drawnHeroesThisSlot = new Set();
 
 let currentCandidate = null;
-let savedRoster = [];
+let myRoster = [];
 
 // DOM
 const blueScoreEl = document.getElementById('blueScore');
@@ -415,19 +449,106 @@ const rerollPlayerBtn = document.getElementById('rerollPlayerBtn');
 const rerollHeroDisplay = document.getElementById('rerollHeroDisplay');
 const rerollPlayerDisplay = document.getElementById('rerollPlayerDisplay');
 const stepIndicator = document.getElementById('stepIndicator');
+const readyBtn = document.getElementById('readyBtn');
+const modalActionBtn = document.getElementById('modalActionBtn');
 
 const cardPrompt = document.getElementById('cardPrompt');
 const cardPlayer = document.getElementById('cardPlayer');
 const cardHero = document.getElementById('cardHero');
 const cardMeta = document.getElementById('cardMeta');
-const modalActionBtn = document.getElementById('modalActionBtn');
 
-function initBo7Stats() {
-  PLAYERS.forEach(p => {
-    bo7PlayerRecords[p] = { mvpCount: 0, totalRating: 0, gamesPlayed: 0 };
+// --- WebRTC PeerJS 連線機制 ---
+function generateRoomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let res = "";
+  for (let i = 0; i < 4; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+  return res;
+}
+
+function createRoom() {
+  const code = generateRoomCode();
+  const peerId = "aov-bo7-" + code;
+  peer = new Peer(peerId);
+
+  peer.on('open', () => {
+    isHost = true;
+    showConnectedUI(code, "我是【藍方房主】");
+    document.getElementById('oppStatusText').innerText = "等待紅方加入房間…";
+  });
+
+  peer.on('connection', (c) => {
+    conn = c;
+    setupConnectionEvents();
+    document.getElementById('oppStatusText').innerText = "紅方已加入！各自選角中";
+    startDrawBtn.disabled = false;
+    cardPrompt.innerText = "連線成功！請點擊下方按鈕開始抽取第 1 個位置";
+  });
+
+  peer.on('error', (err) => {
+    alert("房間建立失敗或代碼衝突，請刷新重試: " + err);
   });
 }
-initBo7Stats();
+
+function joinRoom() {
+  const code = document.getElementById('joinRoomInput').value.trim().toUpperCase();
+  if (code.length !== 4) {
+    alert("請輸入正確的 4 碼房間代碼！");
+    return;
+  }
+  peer = new Peer();
+
+  peer.on('open', () => {
+    isHost = false;
+    conn = peer.connect("aov-bo7-" + code);
+    setupConnectionEvents();
+    showConnectedUI(code, "我是【紅方挑戰者】");
+    document.getElementById('oppStatusText').innerText = "連線中…";
+  });
+
+  peer.on('error', (err) => {
+    alert("連線失敗，請確認房間號碼是否正確: " + err);
+  });
+}
+
+function showConnectedUI(code, roleText) {
+  document.getElementById('roomInitial').style.display = 'none';
+  document.getElementById('roomConnected').style.display = 'block';
+  document.getElementById('displayRoomId').innerText = code;
+  const roleEl = document.getElementById('roleIndicator');
+  roleEl.innerText = roleText;
+  roleEl.className = "role-indicator " + (isHost ? "role-blue" : "role-red");
+}
+
+function setupConnectionEvents() {
+  conn.on('open', () => {
+    document.getElementById('oppStatusText').innerText = "雙方連線成功！各自抽卡中";
+    startDrawBtn.disabled = false;
+    cardPrompt.innerText = `Game ${currentGameRound} - 請點擊下方按鈕開始抽取第 1 個位置`;
+  });
+
+  conn.on('data', (data) => {
+    if (data.type === 'READY') {
+      oppReady = true;
+      oppRoster = data.roster;
+      document.getElementById('oppStatusText').innerText = "對手已完成陣容並就緒！";
+      checkBothReady();
+    } else if (data.type === 'MATCH_RESULT') {
+      // 紅方接收房主的模擬結果並渲染
+      syncMatchOutcome(data.result);
+    } else if (data.type === 'NEXT_ROUND') {
+      // 同步進入下一局
+      currentGameRound = data.round;
+      setupNextGameRound();
+    } else if (data.type === 'RESET_BO7') {
+      resetEntireBo7();
+    }
+  });
+
+  conn.on('close', () => {
+    alert("對手已斷開連線！");
+    location.reload();
+  });
+}
 
 function updateScoreboardUI() {
   blueScoreEl.innerText = blueWins;
@@ -439,12 +560,13 @@ function updateScoreboardUI() {
     bpInfoBanner.style.borderColor = "rgba(248, 81, 73, 0.5)";
     bpInfoBanner.style.color = "#f85149";
   } else {
-    bpInfoBanner.innerText = `🛡️ 全局 BP 生效中：已使用 ${globalBannedHeroes.size} 隻英雄（第七局解禁）`;
+    bpInfoBanner.innerText = `🛡️ 全局 BP 生效中：本方已鎖定 ${myBannedHeroes.size} 隻英雄（第七局解禁）`;
     bpInfoBanner.style.borderColor = "rgba(241, 224, 90, 0.3)";
     bpInfoBanner.style.color = "var(--accent-gold)";
   }
 }
 
+// --- 抽籤與排除邏輯 ---
 function getAvailableRoles() {
   const ALL_ROLES = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
   return ALL_ROLES.filter(r => !lockedRoles.has(r));
@@ -453,7 +575,7 @@ function getAvailableRoles() {
 function getAvailableHeroes(excludeDrawnInSlot = false) {
   const availRoles = getAvailableRoles();
   return HEROES_DB.filter(h => {
-    if (currentGameRound < 7 && globalBannedHeroes.has(h.name)) return false;
+    if (currentGameRound < 7 && myBannedHeroes.has(h.name)) return false;
     if (lockedHeroes.has(h.name)) return false;
     if (excludeDrawnInSlot && drawnHeroesThisSlot.has(h.name)) return false;
     return h.roles.some(r => availRoles.includes(r));
@@ -488,28 +610,16 @@ function updateRerollButtons() {
   rerollHeroDisplay.innerText = heroRerollsLeft;
   rerollPlayerDisplay.innerText = playerRerollsLeft;
 
-  if (heroRerollsLeft > 0) {
-    rerollHeroBtn.disabled = false;
-    rerollHeroBtn.innerText = `🎲 重抽英雄 (${heroRerollsLeft})`;
-  } else {
-    rerollHeroBtn.disabled = true;
-    rerollHeroBtn.innerText = `🎲 重抽英雄 (0)`;
-  }
-
-  if (playerRerollsLeft > 0) {
-    rerollPlayerBtn.disabled = false;
-    rerollPlayerBtn.innerText = `🎲 重抽玩家 (${playerRerollsLeft})`;
-  } else {
-    rerollPlayerBtn.disabled = true;
-    rerollPlayerBtn.innerText = `🎲 重抽玩家 (0)`;
-  }
+  rerollHeroBtn.disabled = (heroRerollsLeft <= 0);
+  rerollHeroBtn.innerText = `🎲 重抽英雄 (${heroRerollsLeft})`;
+  rerollPlayerBtn.disabled = (playerRerollsLeft <= 0);
+  rerollPlayerBtn.innerText = `🎲 重抽玩家 (${playerRerollsLeft})`;
 }
 
-// 1. 開始抽取
 function handleStartDraw() {
   startDrawBtn.disabled = true;
   decisionRow.style.display = "none";
-  cardPrompt.innerText = `Game ${currentGameRound} - 為第 ${lockedCount + 1} 個位置挑選選手與英雄…`;
+  cardPrompt.innerText = `Game ${currentGameRound} - 正在為第 ${lockedCount + 1} 個位置挑選選手與英雄…`;
 
   drawnPlayersThisSlot.clear();
   drawnHeroesThisSlot.clear();
@@ -530,12 +640,10 @@ function handleStartDraw() {
       clearInterval(timer);
       const pickedHero = availHeroes[Math.floor(Math.random() * availHeroes.length)];
       const pickedPlayer = availPlayers[Math.floor(Math.random() * availPlayers.length)];
-      
       drawnPlayersThisSlot.add(pickedPlayer);
       drawnHeroesThisSlot.add(pickedHero.name);
 
       setCandidate(pickedPlayer, pickedHero);
-
       cardPrompt.innerText = `請選擇鎖定或使用獨立重抽額度：`;
       decisionRow.style.display = "flex";
       confirmBtn.disabled = false;
@@ -553,7 +661,6 @@ function setCandidate(player, hero) {
   renderCurrentCard();
 }
 
-// 2. 🎲 重抽英雄
 function handleRerollHero() {
   if (heroRerollsLeft <= 0) return;
   heroRerollsLeft--;
@@ -562,9 +669,7 @@ function handleRerollHero() {
   confirmBtn.disabled = true;
 
   let availHeroes = getAvailableHeroes(true);
-  if (availHeroes.length === 0) {
-    availHeroes = getAvailableHeroes(false).filter(h => h.name !== currentCandidate.hero.name);
-  }
+  if (availHeroes.length === 0) availHeroes = getAvailableHeroes(false).filter(h => h.name !== currentCandidate.hero.name);
 
   let count = 0;
   const timer = setInterval(() => {
@@ -581,7 +686,6 @@ function handleRerollHero() {
   }, 60);
 }
 
-// 3. 🎲 重抽玩家
 function handleRerollPlayer() {
   if (playerRerollsLeft <= 0) return;
   playerRerollsLeft--;
@@ -590,9 +694,7 @@ function handleRerollPlayer() {
   confirmBtn.disabled = true;
 
   let availPlayers = getAvailablePlayers(true);
-  if (availPlayers.length === 0) {
-    availPlayers = getAvailablePlayers(false).filter(p => p !== currentCandidate.player);
-  }
+  if (availPlayers.length === 0) availPlayers = getAvailablePlayers(false).filter(p => p !== currentCandidate.player);
 
   let count = 0;
   const timer = setInterval(() => {
@@ -609,7 +711,6 @@ function handleRerollPlayer() {
   }, 60);
 }
 
-// 4. ✅ 確認鎖定
 function handleConfirmPick() {
   const { player, hero, assignedRole } = currentCandidate;
 
@@ -617,11 +718,10 @@ function handleConfirmPick() {
   lockedHeroes.add(hero.name);
   lockedRoles.add(assignedRole);
   lockedCount++;
-  savedRoster.push({ ...currentCandidate });
+  myRoster.push({ ...currentCandidate });
 
   const slotEl = document.getElementById(`slot-${assignedRole}`);
   const valEl = document.getElementById(`val-${assignedRole}`);
-
   slotEl.classList.add('locked');
   valEl.innerText = `${player} ─ ${hero.name}`;
   valEl.style.color = "#58a6ff";
@@ -638,34 +738,54 @@ function handleConfirmPick() {
     startDrawBtn.disabled = false;
     startDrawBtn.innerText = `🎰 抽取第 ${lockedCount + 1} 個位置`;
   } else {
-    cardPrompt.innerText = `Game ${currentGameRound} 先發五人集結完畢，準備迎戰！`;
-    startDrawBtn.style.display = "block";
-    startDrawBtn.disabled = false;
-    startDrawBtn.innerText = `⚔️ 進行 Game ${currentGameRound} 排位對局結算`;
-    startDrawBtn.onclick = generateMatchResultPoster;
+    cardPrompt.innerText = `Game ${currentGameRound} 先發五人已集結完畢！請點擊下方開戰確認`;
+    readyBtn.style.display = "block";
+    startDrawBtn.style.display = "none";
   }
 }
 
-// 5. 實戰排位模擬
-function simulateMatchStats(roster) {
-  let totalScore = 0;
-  let totalProf = 0;
-  roster.forEach(r => {
-    totalScore += r.finalScore;
-    totalProf += r.prof;
-  });
-  const avgScore = totalScore / 5;
-  const avgProf = totalProf / 5;
+// 點擊準備就緒
+function handleReady() {
+  myReady = true;
+  readyBtn.disabled = true;
+  readyBtn.innerText = "⏳ 等待對手完成選角…";
 
-  const profFactor = (avgProf - 0.55) * 0.55;
-  const scoreFactor = (avgScore - 84) * 0.035;
-  let winRate = 0.46 + profFactor + scoreFactor;
-  winRate = Math.min(0.92, Math.max(0.15, winRate));
+  conn.send({ type: 'READY', roster: myRoster });
+  checkBothReady();
+}
 
-  const isVictory = Math.random() < winRate;
+function checkBothReady() {
+  if (myReady && oppReady) {
+    if (isHost) {
+      // 房主負責計算對局結果並推播給紅方
+      const matchResult = simulatePvpMatch(myRoster, oppRoster);
+      conn.send({ type: 'MATCH_RESULT', result: matchResult });
+      syncMatchOutcome(matchResult);
+    }
+  }
+}
 
-  const teamKills = isVictory ? Math.floor(Math.random() * 9) + 17 : Math.floor(Math.random() * 9) + 7;
-  const teamDeaths = isVictory ? Math.floor(Math.random() * 7) + 6 : Math.floor(Math.random() * 9) + 16;
+// --- 雙人實戰模擬計算 ---
+function simulatePvpMatch(blueRoster, redRoster) {
+  let blueScore = 0, blueProf = 0;
+  blueRoster.forEach(r => { blueScore += r.finalScore; blueProf += r.prof; });
+  let redScore = 0, redProf = 0;
+  redRoster.forEach(r => { redScore += r.finalScore; redProf += r.prof; });
+
+  const blueAvg = blueScore / 5;
+  const redAvg = redScore / 5;
+
+  const diff = (blueAvg - redAvg) * 0.045;
+  let blueWinRate = 0.50 + diff;
+  blueWinRate = Math.min(0.88, Math.max(0.12, blueWinRate));
+
+  const blueWinsThisGame = Math.random() < blueWinRate;
+
+  const winK = Math.floor(Math.random() * 8) + 18;
+  const loseK = Math.floor(Math.random() * 7) + 8;
+
+  const blueKills = blueWinsThisGame ? winK : loseK;
+  const redKills = blueWinsThisGame ? loseK : winK;
 
   const roleWeights = {
     "打野": { k: 0.28, a: 0.18, d: 0.20 },
@@ -675,222 +795,246 @@ function simulateMatchStats(roster) {
     "輔助": { k: 0.06, a: 0.38, d: 0.21 }
   };
 
-  let playerStats = roster.map(item => {
-    const rw = roleWeights[item.assignedRole] || { k: 0.2, a: 0.2, d: 0.2 };
-    const profBonus = (item.prof - 0.5); 
+  function genStats(roster, isWinner, teamK, teamD) {
+    return roster.map(item => {
+      const rw = roleWeights[item.assignedRole] || { k: 0.2, a: 0.2, d: 0.2 };
+      const profBonus = (item.prof - 0.5);
+      let k = Math.max(0, Math.round(teamK * rw.k * (1 + profBonus * 0.45) + (Math.random() * 1.6 - 0.8)));
+      let d = Math.max(0, Math.round(teamD * rw.d * (1 - profBonus * 0.50) + (Math.random() * 1.4 - 0.7)));
+      let a = Math.max(0, Math.round(teamK * rw.a * (1 + profBonus * 0.35) + (Math.random() * 2.0 - 1.0)));
 
-    let rawK = teamKills * rw.k * (1 + profBonus * 0.45) + (Math.random() * 1.6 - 0.8);
-    let rawD = teamDeaths * rw.d * (1 - profBonus * 0.50) + (Math.random() * 1.4 - 0.7);
-    let rawA = teamKills * rw.a * (1 + profBonus * 0.35) + (Math.random() * 2.0 - 1.0);
+      const effectiveDeath = Math.max(1, d);
+      const rawRatio = (k * 3.0 + a * 1.8) / (effectiveDeath * 1.3);
+      let rating = 4.2 + (rawRatio * 0.75) + (item.prof * 2.5);
+      if (!isWinner) rating *= 0.88;
+      rating = parseFloat(Math.min(14.5, Math.max(3.8, rating)).toFixed(1));
 
-    let k = Math.max(0, Math.round(rawK));
-    let d = Math.max(0, Math.round(rawD));
-    let a = Math.max(0, Math.round(rawA));
+      return { ...item, k, d, a, kdaStr: `${k}/${d}/${a}`, rating };
+    });
+  }
 
-    const effectiveDeath = Math.max(1, d);
-    const rawRatio = (k * 3.0 + a * 1.8) / (effectiveDeath * 1.3);
-    let calcRating = 4.2 + (rawRatio * 0.75) + (item.prof * 2.5);
-    if (!isVictory) calcRating *= 0.88;
+  const blueStats = genStats(blueRoster, blueWinsThisGame, blueKills, redKills);
+  const redStats = genStats(redRoster, !blueWinsThisGame, redKills, blueKills);
 
-    calcRating = Math.min(14.5, Math.max(3.8, calcRating)).toFixed(1);
-
-    return {
-      ...item,
-      k, d, a,
-      kdaStr: `${k} / ${d} / ${a}`,
-      rating: parseFloat(calcRating)
-    };
+  // 選出單局 MVP（獲勝隊伍評分最高者）
+  const winTeamStats = blueWinsThisGame ? blueStats : redStats;
+  let mvpIdx = 0, maxR = -1;
+  winTeamStats.forEach((p, i) => {
+    if (p.rating > maxR) { maxR = p.rating; mvpIdx = i; }
   });
+  winTeamStats[mvpIdx].isMvp = true;
 
-  let mvpIndex = 0;
-  let maxRating = -1;
-  playerStats.forEach((p, idx) => {
-    if (p.rating > maxRating) {
-      maxRating = p.rating;
-      mvpIndex = idx;
-    }
-  });
-  playerStats[mvpIndex].isMvp = true;
-
-  return { isVictory, playerStats, teamKills, teamDeaths, mvpPlayer: playerStats[mvpIndex] };
+  return { blueWinsThisGame, blueKills, redKills, blueStats, redStats, mvpPlayer: winTeamStats[mvpIdx].player };
 }
 
-// 計算系列賽奪冠時的 FMVP 是誰
-function getSeriesFMVP() {
-  let fmvpPlayer = null;
-  let maxMvpCount = -1;
-  let maxAvgRating = -1;
-
+// 取得奪冠方的 FMVP 姓名
+function getChampionFMVP(isBlueChampion) {
+  const targetRecord = isBlueChampion ? bluePlayerStatsRecord : redPlayerStatsRecord;
+  let fmvp = null, maxMvp = -1, maxRating = -1;
   PLAYERS.forEach(p => {
-    const rec = bo7PlayerRecords[p];
-    const avg = rec.gamesPlayed > 0 ? (rec.totalRating / rec.gamesPlayed) : 0;
-    if (rec.mvpCount > maxMvpCount || (rec.mvpCount === maxMvpCount && avg > maxAvgRating)) {
-      maxMvpCount = rec.mvpCount;
-      maxAvgRating = avg;
-      fmvpPlayer = p;
+    const rec = targetRecord[p];
+    const avg = rec.games > 0 ? (rec.totalRating / rec.games) : 0;
+    if (rec.mvpCount > maxMvp || (rec.mvpCount === maxMvp && avg > maxRating)) {
+      maxMvp = rec.mvpCount;
+      maxRating = avg;
+      fmvp = p;
     }
   });
-  return fmvpPlayer;
+  return fmvp;
 }
 
-// 6. 繪製統一結算海報（包含戰績，獲勝時只標出 FMVP 是誰）
-function generateMatchResultPoster() {
+// 同步結果並繪製結算圖
+function syncMatchOutcome(result) {
+  const { blueWinsThisGame, blueKills, redKills, blueStats, redStats, mvpPlayer } = result;
+
+  if (blueWinsThisGame) {
+    blueWins++;
+    bluePlayerStatsRecord[mvpPlayer].mvpCount++;
+  } else {
+    redWins++;
+    redPlayerStatsRecord[mvpPlayer].mvpCount++;
+  }
+
+  // 累計各方評分數據
+  blueStats.forEach(p => {
+    bluePlayerStatsRecord[p.player].totalRating += p.rating;
+    bluePlayerStatsRecord[p.player].games++;
+  });
+  redStats.forEach(p => {
+    redPlayerStatsRecord[p.player].totalRating += p.rating;
+    redPlayerStatsRecord[p.player].games++;
+  });
+
+  // 紀錄我方全局 BP
+  if (currentGameRound < 7) {
+    myRoster.forEach(r => myBannedHeroes.add(r.hero.name));
+  }
+
+  updateScoreboardUI();
+  renderBo7MatchPoster(result);
+}
+
+// 繪製對決海報
+function renderBo7MatchPoster(result) {
   const canvas = document.getElementById('posterCanvas');
   const ctx = canvas.getContext('2d');
   const modal = document.getElementById('resultModal');
   modal.style.display = 'flex';
 
-  const simResult = simulateMatchStats(savedRoster);
-  const { isVictory, playerStats, teamKills, teamDeaths, mvpPlayer } = simResult;
-
-  // 更新比分與紀錄
-  if (isVictory) {
-    blueWins++;
-    bo7PlayerRecords[mvpPlayer.player].mvpCount++;
-  } else {
-    redWins++;
-  }
-
-  playerStats.forEach(p => {
-    bo7PlayerRecords[p.player].totalRating += p.rating;
-    bo7PlayerRecords[p.player].gamesPlayed += 1;
-  });
-
-  if (currentGameRound < 7) {
-    savedRoster.forEach(r => globalBannedHeroes.add(r.hero.name));
-  }
-
-  updateScoreboardUI();
-
+  const { blueWinsThisGame, blueKills, redKills, blueStats, redStats } = result;
+  const isMyWin = isHost ? blueWinsThisGame : !blueWinsThisGame;
   const isSeriesOver = (blueWins === 4 || redWins === 4);
-  const isSeriesChampion = (blueWins === 4);
+  const amIChampion = (isHost && blueWins === 4) || (!isHost && redWins === 4);
 
-  // 繪製背景
   ctx.fillStyle = "#0b0e14";
   ctx.fillRect(0, 0, 720, 1060);
 
   // 頂部勝負橫幅
-  const bannerColor = isVictory ? "#238636" : "#da3633";
-  ctx.fillStyle = bannerColor;
+  ctx.fillStyle = isMyWin ? "#238636" : "#da3633";
   ctx.fillRect(0, 0, 720, 150);
 
-  // 主標題
   ctx.fillStyle = "#ffffff";
-  ctx.font = "900 64px sans-serif";
+  ctx.font = "900 60px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(isVictory ? `GAME ${currentGameRound} 獲勝` : `GAME ${currentGameRound} 告負`, 360, 85);
+  ctx.fillText(isMyWin ? `GAME ${currentGameRound} 獲勝` : `GAME ${currentGameRound} 告負`, 360, 85);
 
-  // 次標題（若奪冠直接用文字寫出 FMVP 是誰，不放大字卡）
+  // 次標題：系列賽奪冠時直接文字呈現 FMVP 是誰
   ctx.font = "bold 21px sans-serif";
-  if (isSeriesChampion) {
-    const fmvpName = getSeriesFMVP();
-    ctx.fillStyle = "#ffb800";
-    ctx.fillText(`🏆 贏得系列賽冠軍！【 FMVP：${fmvpName} 】 總比分 ${blueWins} : ${redWins}`, 360, 130);
+  if (isSeriesOver) {
+    if (amIChampion) {
+      const fmvpName = getChampionFMVP(blueWins === 4);
+      ctx.fillStyle = "#ffb800";
+      ctx.fillText(`🏆 贏得系列賽總冠軍！【 FMVP：${fmvpName} 】 總比分 ${blueWins} : ${redWins}`, 360, 130);
+    } else {
+      ctx.fillStyle = "#f5c2e7";
+      ctx.fillText(`系列賽總比分 【 ${blueWins} : ${redWins} 】 遺憾告負`, 360, 130);
+    }
   } else {
-    ctx.fillStyle = isVictory ? "#a6e3a1" : "#f5c2e7";
-    ctx.fillText(`系列賽總比分 【 ${blueWins} : ${redWins} 】 · 團隊人頭 ${teamKills} : ${teamDeaths}`, 360, 130);
+    ctx.fillStyle = "#f1e05a";
+    ctx.fillText(`系列賽比分 【 藍 ${blueWins} : ${redWins} 紅 】 · 本局比分 ${blueKills} : ${redKills}`, 360, 130);
   }
 
-  // 繪製五位選手戰績卡
-  ctx.textAlign = "left";
-  const startY = 175;
+  // 繪製雙方陣容摘要
   const roleOrder = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
-  const sortedStats = roleOrder.map(r => playerStats.find(p => p.assignedRole === r));
 
-  sortedStats.forEach((p, idx) => {
-    const y = startY + (idx * 152);
+  function drawTeamColumn(stats, startX, teamName, isBlue) {
+    ctx.fillStyle = isBlue ? "#58a6ff" : "#f85149";
+    ctx.font = "900 24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(teamName, startX + 160, 185);
 
-    ctx.fillStyle = "#161b22";
-    ctx.roundRect(30, y, 660, 136, 14);
-    ctx.fill();
+    roleOrder.forEach((role, idx) => {
+      const p = stats.find(item => item.assignedRole === role);
+      const y = 205 + (idx * 155);
 
-    ctx.lineWidth = p.isMvp ? 3 : 1;
-    ctx.strokeStyle = p.isMvp ? "#f1e05a" : "#30363d";
-    ctx.stroke();
+      ctx.fillStyle = "#161b22";
+      ctx.roundRect(startX, y, 320, 142, 10);
+      ctx.fill();
 
-    ctx.fillStyle = "#58a6ff";
-    ctx.font = "bold 23px sans-serif";
-    ctx.fillText(`【${p.assignedRole}】`, 50, y + 42);
+      ctx.lineWidth = p.isMvp ? 2.5 : 1;
+      ctx.strokeStyle = p.isMvp ? "#f1e05a" : "#30363d";
+      ctx.stroke();
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 28px sans-serif";
-    ctx.fillText(`${p.player} ─ ${p.hero.name}`, 160, y + 42);
-
-    if (p.isMvp) {
-      ctx.fillStyle = "#f1e05a";
-      ctx.font = "900 22px sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillText(isVictory ? "★ MVP" : "★ 敗方 MVP", 670, y + 42);
       ctx.textAlign = "left";
-    }
+      ctx.fillStyle = isBlue ? "#58a6ff" : "#f85149";
+      ctx.font = "bold 18px sans-serif";
+      ctx.fillText(`[${role}]`, startX + 12, y + 30);
 
-    ctx.strokeStyle = "#21262d";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(50, y + 62);
-    ctx.lineTo(670, y + 62);
-    ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 21px sans-serif";
+      ctx.fillText(`${p.player}`, startX + 80, y + 30);
 
-    ctx.fillStyle = "#8b949e";
-    ctx.font = "18px sans-serif";
-    ctx.fillText("戰績 KDA", 60, y + 94);
-    ctx.fillText("局內評分", 540, y + 94);
+      if (p.isMvp) {
+        ctx.fillStyle = "#f1e05a";
+        ctx.font = "900 17px sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText("★ MVP", startX + 308, y + 30);
+        ctx.textAlign = "left";
+      }
 
-    ctx.fillStyle = "#f0f6fc";
-    ctx.font = "900 25px sans-serif";
-    ctx.fillText(p.kdaStr, 60, y + 124);
+      ctx.fillStyle = "var(--accent-gold)";
+      ctx.font = "bold 19px sans-serif";
+      ctx.fillText(p.hero.name, startX + 12, y + 68);
 
-    ctx.fillStyle = p.isMvp ? "#f1e05a" : "#ffffff";
-    ctx.font = "900 25px sans-serif";
-    ctx.fillText(p.rating.toFixed(1), 540, y + 124);
-  });
+      ctx.strokeStyle = "#21262d";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(startX + 12, y + 84);
+      ctx.lineTo(startX + 308, y + 84);
+      ctx.stroke();
 
-  // 底部說明文字
+      ctx.fillStyle = "#8b949e";
+      ctx.font = "16px sans-serif";
+      ctx.fillText("KDA", startX + 12, y + 115);
+      ctx.fillText("評分", startX + 180, y + 115);
+
+      ctx.fillStyle = "#f0f6fc";
+      ctx.font = "900 19px sans-serif";
+      ctx.fillText(p.kdaStr, startX + 55, y + 115);
+
+      ctx.fillStyle = p.isMvp ? "#f1e05a" : "#ffffff";
+      ctx.font = "900 20px sans-serif";
+      ctx.fillText(p.rating.toFixed(1), startX + 230, y + 115);
+    });
+  }
+
+  drawTeamColumn(blueStats, 25, "藍方陣容 (房主)", true);
+  drawTeamColumn(redStats, 375, "紅方陣容 (挑戰者)", false);
+
+  // 底部文字與按鈕文字配置
   ctx.textAlign = "center";
-  ctx.font = "18px sans-serif";
+  ctx.font = "17px sans-serif";
 
   if (isSeriesOver) {
-    if (isSeriesChampion) {
-      const fmvpName = getSeriesFMVP();
+    if (amIChampion) {
+      const fmvpName = getChampionFMVP(blueWins === 4);
       ctx.fillStyle = "#ffb800";
-      ctx.fillText(`🏆 系列賽結束！恭喜 ${fmvpName} 榮膺 FMVP！`, 360, 980);
-      modalActionBtn.innerText = "🏆 奪冠完成！再開一場 Bo7 ↺";
+      ctx.fillText(`🏆 恭喜 ${fmvpName} 榮膺本屆總決賽 FMVP！`, 360, 1000);
+      modalActionBtn.innerText = "🏆 奪冠完成！再戰一輪 Bo7 ↺";
       modalActionBtn.style.background = "#ffb800";
       modalActionBtn.style.color = "#000";
     } else {
       ctx.fillStyle = "#f85149";
-      ctx.fillText(`系列賽以 ${blueWins} : ${redWins} 告負，再接再厲！`, 360, 980);
-      modalActionBtn.innerText = "遺憾落敗，重新挑戰 Bo7 ↺";
+      ctx.fillText(`系列賽結束，遺憾告負！再接再厲！`, 360, 1000);
+      modalActionBtn.innerText = "重新開局 Bo7 ↺";
       modalActionBtn.style.background = "#30363d";
       modalActionBtn.style.color = "#fff";
     }
   } else {
     ctx.fillStyle = "#8b949e";
-    ctx.fillText(`全局已封鎖 ${globalBannedHeroes.size} 隻英雄 ｜ 點擊下方按鈕繼續下一場`, 360, 980);
+    ctx.fillText(`全局 BP 生效中：各自已封鎖用過角色 ｜ 點擊進入下一場`, 360, 1000);
     modalActionBtn.innerText = `進入 Game ${currentGameRound + 1} ➔`;
     modalActionBtn.style.background = "#238636";
     modalActionBtn.style.color = "#fff";
   }
 
   ctx.fillStyle = "#58a6ff";
-  ctx.font = "16px sans-serif";
-  ctx.fillText("長按海報可儲存圖片分享至群組！", 360, 1020);
+  ctx.font = "15px sans-serif";
+  ctx.fillText("長按圖片可儲存對決戰報海報！", 360, 1030);
 }
 
-// 彈窗按鈕動作
+// 彈窗下一步按鈕
 function handleModalNextAction() {
   const isSeriesOver = (blueWins === 4 || redWins === 4);
   document.getElementById('resultModal').style.display = 'none';
 
   if (isSeriesOver) {
-    resetEntireBo7();
+    if (isHost) {
+      conn.send({ type: 'RESET_BO7' });
+      resetEntireBo7();
+    } else {
+      location.reload();
+    }
   } else {
-    currentGameRound++;
-    setupNextGameRound();
+    if (isHost) {
+      currentGameRound++;
+      conn.send({ type: 'NEXT_ROUND', round: currentGameRound });
+      setupNextGameRound();
+    }
   }
 }
 
-// 進入下一局
+// 設置下一局
 function setupNextGameRound() {
   heroRerollsLeft = 2;
   playerRerollsLeft = 2;
@@ -901,7 +1045,11 @@ function setupNextGameRound() {
   drawnPlayersThisSlot.clear();
   drawnHeroesThisSlot.clear();
   currentCandidate = null;
-  savedRoster = [];
+  myRoster = [];
+
+  myReady = false;
+  oppReady = false;
+  oppRoster = null;
 
   stepIndicator.innerText = "0 / 5";
   updateScoreboardUI();
@@ -912,10 +1060,16 @@ function setupNextGameRound() {
   cardMeta.innerText = "尚未指定分路";
 
   decisionRow.style.display = "none";
+  readyBtn.style.display = "none";
+  readyBtn.disabled = false;
+  readyBtn.innerText = "⚔️ 陣容確認完畢！準備開戰";
+
   startDrawBtn.style.display = "block";
   startDrawBtn.disabled = false;
-  startDrawBtn.innerText = `🎰 抽取 Game ${currentGameRound} 組合`;
+  startDrawBtn.innerText = `🎰 抽取 Game ${currentGameRound} 先發組合`;
   startDrawBtn.onclick = handleStartDraw;
+
+  document.getElementById('oppStatusText').innerText = `Game ${currentGameRound} 開始，雙方選角中`;
 
   const ALL_ROLES = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
   ALL_ROLES.forEach(r => {
@@ -931,8 +1085,8 @@ function resetEntireBo7() {
   currentGameRound = 1;
   blueWins = 0;
   redWins = 0;
-  globalBannedHeroes.clear();
-  initBo7Stats();
+  myBannedHeroes.clear();
+  initRecords();
   setupNextGameRound();
 }
 </script>
