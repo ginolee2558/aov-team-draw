@@ -35,7 +35,7 @@
   h1 { font-size: 1.35rem; margin: 6px 0; color: #58a6ff; text-align: center; }
   .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 10px; text-align: center; }
 
-  /* Bo7 比分看板 */
+  /* Bo7 比分面板 */
   .bo7-scoreboard {
     width: 100%;
     background: linear-gradient(180deg, #1f242c, #161b22);
@@ -200,7 +200,7 @@
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.94);
+    background: rgba(0, 0, 0, 0.92);
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -211,7 +211,7 @@
   .modal-btn {
     background: #238636;
     color: #fff;
-    padding: 12px 28px;
+    padding: 11px 26px;
     border: none;
     border-radius: 20px;
     font-size: 1rem;
@@ -387,9 +387,6 @@ let blueWins = 0;
 let redWins = 0;
 let globalBannedHeroes = new Set();
 let bo7PlayerRecords = {};
-
-// 彈窗目前顯示的模式：'single' (單場) 或 'championship' (總決賽結算)
-let currentModalView = 'single';
 
 // 本小局狀態
 let heroRerollsLeft = 2;
@@ -718,7 +715,25 @@ function simulateMatchStats(roster) {
   return { isVictory, playerStats, teamKills, teamDeaths, mvpPlayer: playerStats[mvpIndex] };
 }
 
-// 6. 繪製單局戰報
+// 計算系列賽奪冠時的 FMVP 是誰
+function getSeriesFMVP() {
+  let fmvpPlayer = null;
+  let maxMvpCount = -1;
+  let maxAvgRating = -1;
+
+  PLAYERS.forEach(p => {
+    const rec = bo7PlayerRecords[p];
+    const avg = rec.gamesPlayed > 0 ? (rec.totalRating / rec.gamesPlayed) : 0;
+    if (rec.mvpCount > maxMvpCount || (rec.mvpCount === maxMvpCount && avg > maxAvgRating)) {
+      maxMvpCount = rec.mvpCount;
+      maxAvgRating = avg;
+      fmvpPlayer = p;
+    }
+  });
+  return fmvpPlayer;
+}
+
+// 6. 繪製統一結算海報（包含戰績，獲勝時只標出 FMVP 是誰）
 function generateMatchResultPoster() {
   const canvas = document.getElementById('posterCanvas');
   const ctx = canvas.getContext('2d');
@@ -728,7 +743,7 @@ function generateMatchResultPoster() {
   const simResult = simulateMatchStats(savedRoster);
   const { isVictory, playerStats, teamKills, teamDeaths, mvpPlayer } = simResult;
 
-  // 更新比分
+  // 更新比分與紀錄
   if (isVictory) {
     blueWins++;
     bo7PlayerRecords[mvpPlayer.player].mvpCount++;
@@ -736,61 +751,47 @@ function generateMatchResultPoster() {
     redWins++;
   }
 
-  // 記錄選手評分
   playerStats.forEach(p => {
     bo7PlayerRecords[p.player].totalRating += p.rating;
     bo7PlayerRecords[p.player].gamesPlayed += 1;
   });
 
-  // 加入全局 BP（第七場不鎖）
   if (currentGameRound < 7) {
     savedRoster.forEach(r => globalBannedHeroes.add(r.hero.name));
   }
 
   updateScoreboardUI();
 
-  // 顯示單場戰報
-  currentModalView = 'single';
-  drawSingleGamePoster(ctx, simResult);
-
   const isSeriesOver = (blueWins === 4 || redWins === 4);
-  if (isSeriesOver) {
-    if (blueWins === 4) {
-      modalActionBtn.innerText = "🏆 查看總決賽冠軍海報與 FMVP ➔";
-      modalActionBtn.style.background = "#ffb800";
-      modalActionBtn.style.color = "#000";
-    } else {
-      modalActionBtn.innerText = "💔 遺憾結束，查看亞軍戰報 ➔";
-      modalActionBtn.style.background = "#da3633";
-      modalActionBtn.style.color = "#fff";
-    }
-  } else {
-    modalActionBtn.innerText = `進入 Game ${currentGameRound + 1} ➔`;
-    modalActionBtn.style.background = "#238636";
-    modalActionBtn.style.color = "#fff";
-  }
-}
+  const isSeriesChampion = (blueWins === 4);
 
-// 繪製單局戰報海報
-function drawSingleGamePoster(ctx, simResult) {
-  const { isVictory, playerStats, teamKills, teamDeaths } = simResult;
-
+  // 繪製背景
   ctx.fillStyle = "#0b0e14";
   ctx.fillRect(0, 0, 720, 1060);
 
+  // 頂部勝負橫幅
   const bannerColor = isVictory ? "#238636" : "#da3633";
   ctx.fillStyle = bannerColor;
   ctx.fillRect(0, 0, 720, 150);
 
+  // 主標題
   ctx.fillStyle = "#ffffff";
   ctx.font = "900 64px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(isVictory ? `GAME ${currentGameRound} 獲勝` : `GAME ${currentGameRound} 告負`, 360, 95);
+  ctx.fillText(isVictory ? `GAME ${currentGameRound} 獲勝` : `GAME ${currentGameRound} 告負`, 360, 85);
 
-  ctx.font = "bold 20px sans-serif";
-  ctx.fillStyle = isVictory ? "#a6e3a1" : "#f5c2e7";
-  ctx.fillText(`當前系列賽總比分 【 ${blueWins} : ${redWins} 】 · 團隊人頭 ${teamKills} : ${teamDeaths}`, 360, 134);
+  // 次標題（若奪冠直接用文字寫出 FMVP 是誰，不放大字卡）
+  ctx.font = "bold 21px sans-serif";
+  if (isSeriesChampion) {
+    const fmvpName = getSeriesFMVP();
+    ctx.fillStyle = "#ffb800";
+    ctx.fillText(`🏆 贏得系列賽冠軍！【 FMVP：${fmvpName} 】 總比分 ${blueWins} : ${redWins}`, 360, 130);
+  } else {
+    ctx.fillStyle = isVictory ? "#a6e3a1" : "#f5c2e7";
+    ctx.fillText(`系列賽總比分 【 ${blueWins} : ${redWins} 】 · 團隊人頭 ${teamKills} : ${teamDeaths}`, 360, 130);
+  }
 
+  // 繪製五位選手戰績卡
   ctx.textAlign = "left";
   const startY = 175;
   const roleOrder = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
@@ -844,150 +845,41 @@ function drawSingleGamePoster(ctx, simResult) {
     ctx.fillText(p.rating.toFixed(1), 540, y + 124);
   });
 
+  // 底部說明文字
   ctx.textAlign = "center";
-  ctx.fillStyle = "#8b949e";
-  ctx.font = "17px sans-serif";
-  ctx.fillText(`全局已封鎖 ${globalBannedHeroes.size} 隻英雄 ｜ 點擊下方按鈕繼續`, 360, 995);
-}
+  ctx.font = "18px sans-serif";
 
-// 繪製總決賽結算海報（勝者有 FMVP，敗者無）
-function drawChampionshipPoster(ctx, isWinChampionship) {
-  ctx.fillStyle = "#0b0e14";
-  ctx.fillRect(0, 0, 720, 1060);
-
-  if (isWinChampionship) {
-    ctx.fillStyle = "#ffb800";
-    ctx.fillRect(0, 0, 720, 180);
-
-    ctx.fillStyle = "#000000";
-    ctx.font = "900 62px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("CHAMPIONS", 360, 90);
-
-    ctx.font = "bold 26px sans-serif";
-    ctx.fillText(`🏆 傳說對決 總決賽冠軍 (${blueWins} : ${redWins})`, 360, 145);
-
-    // FMVP 計算演算法
-    let fmvpPlayer = PLAYERS[0];
-    let maxMvpCount = -1;
-    let maxAvgRating = -1;
-
-    PLAYERS.forEach(p => {
-      const rec = bo7PlayerRecords[p];
-      const avg = rec.gamesPlayed > 0 ? (rec.totalRating / rec.gamesPlayed) : 0;
-      if (rec.mvpCount > maxMvpCount || (rec.mvpCount === maxMvpCount && avg > maxAvgRating)) {
-        maxMvpCount = rec.mvpCount;
-        maxAvgRating = avg;
-        fmvpPlayer = p;
-      }
-    });
-
-    // FMVP 專屬金色卡牌
-    ctx.fillStyle = "#1c2128";
-    ctx.roundRect(40, 220, 640, 260, 16);
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#ffb800";
-    ctx.stroke();
-
-    ctx.fillStyle = "#ffb800";
-    ctx.font = "900 30px sans-serif";
-    ctx.fillText("👑 總決賽最有價值選手 (FMVP)", 360, 275);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 64px sans-serif";
-    ctx.fillText(fmvpPlayer, 360, 360);
-
-    ctx.font = "bold 22px sans-serif";
-    ctx.fillStyle = "#3fb950";
-    ctx.fillText(`系列賽斬獲 ${maxMvpCount} 次單局 MVP ｜ 場均評分 ${maxAvgRating.toFixed(1)}`, 360, 420);
-
-    // 榮譽英雄池卡牌
-    ctx.fillStyle = "#161b22";
-    ctx.roundRect(40, 520, 640, 440, 16);
-    ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "#30363d";
-    ctx.stroke();
-
-    ctx.fillStyle = "#58a6ff";
-    ctx.font = "bold 26px sans-serif";
-    ctx.fillText("🎖️ 系列賽榮譽英雄池", 360, 570);
-
-    ctx.fillStyle = "#c9d1d9";
-    ctx.font = "20px sans-serif";
-    ctx.fillText(`全隊鏖戰 ${currentGameRound} 局 · 成功登頂世界之巔！`, 360, 620);
-    ctx.fillText(`共動用了 ${globalBannedHeroes.size} 位不同英雄征戰`, 360, 660);
-
-    const heroArray = Array.from(globalBannedHeroes).slice(0, 18);
-    ctx.font = "18px sans-serif";
-    ctx.fillStyle = "#ffb800";
-    ctx.fillText(heroArray.slice(0, 6).join("  •  "), 360, 730);
-    ctx.fillText(heroArray.slice(6, 12).join("  •  "), 360, 775);
-    if (heroArray.length > 12) {
-      ctx.fillText(heroArray.slice(12, 18).join("  •  "), 360, 820);
-    }
-
-    ctx.fillStyle = "#8b949e";
-    ctx.font = "18px sans-serif";
-    ctx.fillText("長按海報儲存榮譽冠軍戰報，分享奪冠時刻！", 360, 920);
-
-  } else {
-    ctx.fillStyle = "#da3633";
-    ctx.fillRect(0, 0, 720, 180);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 60px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("RUNNER-UP 亞軍", 360, 95);
-
-    ctx.font = "bold 26px sans-serif";
-    ctx.fillText(`總比分 【 ${blueWins} : ${redWins} 】 憾負對手`, 360, 145);
-
-    ctx.fillStyle = "#161b22";
-    ctx.roundRect(40, 240, 640, 660, 16);
-    ctx.fill();
-
-    ctx.fillStyle = "#f85149";
-    ctx.font = "bold 30px sans-serif";
-    ctx.fillText("遺憾止步總決賽舞台", 360, 360);
-
-    ctx.fillStyle = "#c9d1d9";
-    ctx.font = "22px sans-serif";
-    ctx.fillText(`在 Bo7 的強烈爭奪中戰至第 ${currentGameRound} 局`, 360, 440);
-    ctx.fillText("全局 BP 英雄池深度面臨考驗", 360, 490);
-    ctx.fillText(`共動用了 ${globalBannedHeroes.size} 位英雄出戰`, 360, 540);
-
-    ctx.fillStyle = "#8b949e";
-    ctx.font = "20px sans-serif";
-    ctx.fillText("勝敗乃兵家常事，重整旗鼓再來一局！", 360, 650);
-  }
-}
-
-// 彈窗按鈕邏輯
-function handleModalNextAction() {
-  const isSeriesOver = (blueWins === 4 || redWins === 4);
-
-  // 如果系列賽結束，且剛看完單場戰報，下一步切換到總決賽海報
-  if (isSeriesOver && currentModalView === 'single') {
-    currentModalView = 'championship';
-    const canvas = document.getElementById('posterCanvas');
-    const ctx = canvas.getContext('2d');
-    drawChampionshipPoster(ctx, blueWins === 4);
-
-    if (blueWins === 4) {
-      modalActionBtn.innerText = "🏆 再次挑戰新賽季 ↺";
+  if (isSeriesOver) {
+    if (isSeriesChampion) {
+      const fmvpName = getSeriesFMVP();
+      ctx.fillStyle = "#ffb800";
+      ctx.fillText(`🏆 系列賽結束！恭喜 ${fmvpName} 榮膺 FMVP！`, 360, 980);
+      modalActionBtn.innerText = "🏆 奪冠完成！再開一場 Bo7 ↺";
       modalActionBtn.style.background = "#ffb800";
       modalActionBtn.style.color = "#000";
     } else {
-      modalActionBtn.innerText = "重新挑戰 Bo7 ↺";
+      ctx.fillStyle = "#f85149";
+      ctx.fillText(`系列賽以 ${blueWins} : ${redWins} 告負，再接再厲！`, 360, 980);
+      modalActionBtn.innerText = "遺憾落敗，重新挑戰 Bo7 ↺";
       modalActionBtn.style.background = "#30363d";
       modalActionBtn.style.color = "#fff";
     }
-    return;
+  } else {
+    ctx.fillStyle = "#8b949e";
+    ctx.fillText(`全局已封鎖 ${globalBannedHeroes.size} 隻英雄 ｜ 點擊下方按鈕繼續下一場`, 360, 980);
+    modalActionBtn.innerText = `進入 Game ${currentGameRound + 1} ➔`;
+    modalActionBtn.style.background = "#238636";
+    modalActionBtn.style.color = "#fff";
   }
 
-  // 關閉彈窗
+  ctx.fillStyle = "#58a6ff";
+  ctx.font = "16px sans-serif";
+  ctx.fillText("長按海報可儲存圖片分享至群組！", 360, 1020);
+}
+
+// 彈窗按鈕動作
+function handleModalNextAction() {
+  const isSeriesOver = (blueWins === 4 || redWins === 4);
   document.getElementById('resultModal').style.display = 'none';
 
   if (isSeriesOver) {
@@ -998,6 +890,7 @@ function handleModalNextAction() {
   }
 }
 
+// 進入下一局
 function setupNextGameRound() {
   heroRerollsLeft = 2;
   playerRerollsLeft = 2;
@@ -1033,6 +926,7 @@ function setupNextGameRound() {
   });
 }
 
+// 重置整個 Bo7
 function resetEntireBo7() {
   currentGameRound = 1;
   blueWins = 0;
