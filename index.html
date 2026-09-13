@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>傳說對決 7人戰隊分路抽取系統</title>
+<title>傳說對決 7人戰隊分路抽取系統 - Bo7 冠軍賽模式</title>
 <style>
   :root {
     --bg-color: #0d1117;
@@ -33,7 +33,35 @@
     align-items: center;
   }
   h1 { font-size: 1.35rem; margin: 6px 0; color: #58a6ff; text-align: center; }
-  .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 12px; text-align: center; }
+  .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 10px; text-align: center; }
+
+  /* Bo7 比分面板 */
+  .bo7-scoreboard {
+    width: 100%;
+    background: linear-gradient(180deg, #1f242c, #161b22);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+  }
+  .team-box { text-align: center; flex: 1; }
+  .team-name { font-size: 0.8rem; color: #8b949e; font-weight: bold; }
+  .team-score { font-size: 1.8rem; font-weight: 900; }
+  .score-blue { color: #58a6ff; }
+  .score-red { color: #f85149; }
+  .vs-badge {
+    background: #21262d;
+    border: 1px solid var(--border-color);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--accent-gold);
+  }
 
   .status-bar {
     width: 100%;
@@ -53,6 +81,7 @@
     font-weight: bold;
   }
 
+  /* 當前抽取卡片 */
   .current-draw-card {
     width: 100%;
     background: linear-gradient(145deg, #1c2128, #161b22);
@@ -68,6 +97,20 @@
   .current-player { font-size: 1.35rem; font-weight: bold; color: #f0f6fc; margin: 4px 0; }
   .current-hero { font-size: 1.6rem; font-weight: bold; color: var(--accent-gold); margin: 6px 0; }
   .current-meta { font-size: 0.9rem; color: #58a6ff; margin-top: 4px; }
+
+  /* 提示標籤 */
+  .bp-banner {
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(241, 224, 90, 0.1);
+    border: 1px solid rgba(241, 224, 90, 0.3);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 0.78rem;
+    color: var(--accent-gold);
+    box-sizing: border-box;
+    text-align: center;
+  }
 
   .control-section {
     width: 100%;
@@ -152,6 +195,7 @@
   .slot-label { font-size: 0.85rem; color: #8b949e; }
   .slot-val { font-size: 1.05rem; font-weight: bold; color: #f0f6fc; margin-top: 2px; }
 
+  /* 彈窗 */
   .result-modal {
     display: none;
     position: fixed;
@@ -164,7 +208,7 @@
     z-index: 999;
   }
   canvas { width: 100%; max-width: 360px; border-radius: 12px; margin-bottom: 12px; }
-  .restart-btn {
+  .modal-btn {
     background: #238636;
     color: #fff;
     padding: 11px 26px;
@@ -179,8 +223,25 @@
 <body>
 
 <div class="app-container">
-  <h1>⚔️ 傳說對決 7人戰隊分路抽取</h1>
-  <div class="subtitle">英雄 2 次 / 玩家 2 次獨立重抽 · 排位生死戰</div>
+  <h1>🏆 傳說對決 職業冠軍賽 (Bo7)</h1>
+  <div class="subtitle">全局 BP 模式 (角色用過即鎖 · 第七場巔峰對決)</div>
+
+  <!-- 比分看板 -->
+  <div class="bo7-scoreboard">
+    <div class="team-box">
+      <div class="team-name">我方戰隊 (YOU)</div>
+      <div class="team-score score-blue" id="blueScore">0</div>
+    </div>
+    <div class="vs-badge" id="matchRoundBadge">Game 1 / Bo7</div>
+    <div class="team-box">
+      <div class="team-name">對手戰隊 (OPP)</div>
+      <div class="team-score score-red" id="redScore">0</div>
+    </div>
+  </div>
+
+  <div class="bp-banner" id="bpInfoBanner">
+    🛡️ 全局 BP 生效中：已使用 0 隻英雄（第七局將解禁）
+  </div>
 
   <div class="status-bar">
     <span>已鎖定：<strong id="stepIndicator">0 / 5</strong></span>
@@ -207,7 +268,7 @@
     </div>
   </div>
 
-  <div class="roster-title">📋 隊伍先發名冊</div>
+  <div class="roster-title">📋 本局先發五人名單</div>
   <div class="slot-grid">
     <div class="slot-card" id="slot-凱薩路">
       <div>
@@ -244,7 +305,7 @@
 
 <div class="result-modal" id="resultModal">
   <canvas id="posterCanvas" width="720" height="1060"></canvas>
-  <button class="restart-btn" onclick="resetEntireGame()">再來一場排位賽 ↺</button>
+  <button class="modal-btn" id="modalActionBtn" onclick="handleModalNextAction()">下一場對決 ➔</button>
 </div>
 
 <script>
@@ -320,20 +381,31 @@ const HEROES_DB = [
   { name: "依夏", roles: ["中路", "輔助"], base: 84, p: [0.5, 0.4, 0.5, 0.4, 0.4, 0.5, 1.0] }
 ];
 
+// Bo7 狀態
+let currentGameRound = 1;
+let blueWins = 0;
+let redWins = 0;
+let globalBannedHeroes = new Set(); // 前六局使用過的英雄全局封鎖
+let bo7PlayerRecords = {}; // 追蹤各選手在整個 Bo7 的 MVP 次數與勝場評分
+
+// 本小局狀態
 let heroRerollsLeft = 2;
 let playerRerollsLeft = 2;
-
 let lockedCount = 0;
 let lockedPlayers = new Set();
 let lockedHeroes = new Set();
 let lockedRoles = new Set();
-
-// 記錄本槽位抽籤及重抽出現過的玩家與英雄，避免重抽二次反覆橫跳
 let drawnPlayersThisSlot = new Set();
 let drawnHeroesThisSlot = new Set();
 
 let currentCandidate = null;
 let savedRoster = [];
+
+// DOM
+const blueScoreEl = document.getElementById('blueScore');
+const redScoreEl = document.getElementById('redScore');
+const matchRoundBadge = document.getElementById('matchRoundBadge');
+const bpInfoBanner = document.getElementById('bpInfoBanner');
 
 const startDrawBtn = document.getElementById('startDrawBtn');
 const decisionRow = document.getElementById('decisionRow');
@@ -348,6 +420,30 @@ const cardPrompt = document.getElementById('cardPrompt');
 const cardPlayer = document.getElementById('cardPlayer');
 const cardHero = document.getElementById('cardHero');
 const cardMeta = document.getElementById('cardMeta');
+const modalActionBtn = document.getElementById('modalActionBtn');
+
+function initBo7Stats() {
+  PLAYERS.forEach(p => {
+    bo7PlayerRecords[p] = { mvpCount: 0, totalRating: 0, gamesPlayed: 0 };
+  });
+}
+initBo7Stats();
+
+function updateScoreboardUI() {
+  blueScoreEl.innerText = blueWins;
+  redScoreEl.innerText = redWins;
+  matchRoundBadge.innerText = `Game ${currentGameRound} / Bo7`;
+
+  if (currentGameRound === 7) {
+    bpInfoBanner.innerText = "🔥 第七局【巔峰對決】！全局 BP 解禁，全英雄開放使用！";
+    bpInfoBanner.style.borderColor = "rgba(248, 81, 73, 0.5)";
+    bpInfoBanner.style.color = "#f85149";
+  } else {
+    bpInfoBanner.innerText = `🛡️ 全局 BP 生效中：已使用 ${globalBannedHeroes.size} 隻英雄（第七局解禁）`;
+    bpInfoBanner.style.borderColor = "rgba(241, 224, 90, 0.3)";
+    bpInfoBanner.style.color = "var(--accent-gold)";
+  }
+}
 
 function getAvailableRoles() {
   const ALL_ROLES = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
@@ -357,7 +453,11 @@ function getAvailableRoles() {
 function getAvailableHeroes(excludeDrawnInSlot = false) {
   const availRoles = getAvailableRoles();
   return HEROES_DB.filter(h => {
+    // 前六場已使用過且被全局封鎖的英雄排除（第七局巔峰對決不排除）
+    if (currentGameRound < 7 && globalBannedHeroes.has(h.name)) return false;
+    // 本場內已鎖定的排除
     if (lockedHeroes.has(h.name)) return false;
+    // 本槽位已抽過排除
     if (excludeDrawnInSlot && drawnHeroesThisSlot.has(h.name)) return false;
     return h.roles.some(r => availRoles.includes(r));
   });
@@ -412,9 +512,8 @@ function updateRerollButtons() {
 function handleStartDraw() {
   startDrawBtn.disabled = true;
   decisionRow.style.display = "none";
-  cardPrompt.innerText = `正在為第 ${lockedCount + 1} 個位置挑選選手與英雄…`;
+  cardPrompt.innerText = `Game ${currentGameRound} - 為第 ${lockedCount + 1} 個位置挑選選手與英雄…`;
 
-  // 清空本位置已抽紀錄
   drawnPlayersThisSlot.clear();
   drawnHeroesThisSlot.clear();
 
@@ -457,7 +556,7 @@ function setCandidate(player, hero) {
   renderCurrentCard();
 }
 
-// 2. 🎲 重抽英雄（徹底排除本槽位已出現過的英雄）
+// 2. 🎲 重抽英雄
 function handleRerollHero() {
   if (heroRerollsLeft <= 0) return;
   heroRerollsLeft--;
@@ -485,7 +584,7 @@ function handleRerollHero() {
   }, 60);
 }
 
-// 3. 🎲 重抽玩家（徹底排除本槽位已出現過的玩家）
+// 3. 🎲 重抽玩家
 function handleRerollPlayer() {
   if (playerRerollsLeft <= 0) return;
   playerRerollsLeft--;
@@ -542,15 +641,15 @@ function handleConfirmPick() {
     startDrawBtn.disabled = false;
     startDrawBtn.innerText = `🎰 抽取第 ${lockedCount + 1} 個位置`;
   } else {
-    cardPrompt.innerText = `🎉 先發五人集結完畢，準備開戰！`;
+    cardPrompt.innerText = `Game ${currentGameRound} 先發五人集結完畢，準備迎戰！`;
     startDrawBtn.style.display = "block";
     startDrawBtn.disabled = false;
-    startDrawBtn.innerText = `⚔️ 進行排位實戰對決`;
+    startDrawBtn.innerText = `⚔️ 進行 Game ${currentGameRound} 排位對局結算`;
     startDrawBtn.onclick = generateMatchResultPoster;
   }
 }
 
-// 5. 實戰排位模擬與 KDA 產生演算法（平衡 KDA 與評分）
+// 5. 實戰排位模擬
 function simulateMatchStats(roster) {
   let totalScore = 0;
   let totalProf = 0;
@@ -568,7 +667,6 @@ function simulateMatchStats(roster) {
 
   const isVictory = Math.random() < winRate;
 
-  // 人頭比分合理化（勝利時約 17~25 殺，失敗時約 7~15 殺）
   const teamKills = isVictory ? Math.floor(Math.random() * 9) + 17 : Math.floor(Math.random() * 9) + 7;
   const teamDeaths = isVictory ? Math.floor(Math.random() * 7) + 6 : Math.floor(Math.random() * 9) + 16;
 
@@ -584,7 +682,6 @@ function simulateMatchStats(roster) {
     const rw = roleWeights[item.assignedRole] || { k: 0.2, a: 0.2, d: 0.2 };
     const profBonus = (item.prof - 0.5); 
 
-    // 計算收斂後的 KDA
     let rawK = teamKills * rw.k * (1 + profBonus * 0.45) + (Math.random() * 1.6 - 0.8);
     let rawD = teamDeaths * rw.d * (1 - profBonus * 0.50) + (Math.random() * 1.4 - 0.7);
     let rawA = teamKills * rw.a * (1 + profBonus * 0.35) + (Math.random() * 2.0 - 1.0);
@@ -593,7 +690,6 @@ function simulateMatchStats(roster) {
     let d = Math.max(0, Math.round(rawD));
     let a = Math.max(0, Math.round(rawA));
 
-    // 局內評分（正常區間 4.5 ~ 14.5）
     const effectiveDeath = Math.max(1, d);
     const rawRatio = (k * 3.0 + a * 1.8) / (effectiveDeath * 1.3);
     let calcRating = 4.2 + (rawRatio * 0.75) + (item.prof * 2.5);
@@ -609,7 +705,6 @@ function simulateMatchStats(roster) {
     };
   });
 
-  // 挑選 MVP
   let mvpIndex = 0;
   let maxRating = -1;
   playerStats.forEach((p, idx) => {
@@ -620,10 +715,12 @@ function simulateMatchStats(roster) {
   });
   playerStats[mvpIndex].isMvp = true;
 
-  return { isVictory, playerStats, teamKills, teamDeaths };
+  return { isVictory, playerStats, teamKills, teamDeaths, mvpPlayer: playerStats[mvpIndex] };
 }
 
-// 6. 繪製排位戰績海報
+// 6. 繪製單局戰報 / 冠軍海報
+let lastMatchResult = null;
+
 function generateMatchResultPoster() {
   const canvas = document.getElementById('posterCanvas');
   const ctx = canvas.getContext('2d');
@@ -631,6 +728,55 @@ function generateMatchResultPoster() {
   modal.style.display = 'flex';
 
   const simResult = simulateMatchStats(savedRoster);
+  lastMatchResult = simResult;
+  const { isVictory, playerStats, teamKills, teamDeaths, mvpPlayer } = simResult;
+
+  // 更新比分與紀錄
+  if (isVictory) {
+    blueWins++;
+    bo7PlayerRecords[mvpPlayer.player].mvpCount++;
+  } else {
+    redWins++;
+  }
+
+  // 記錄選手局均評分
+  playerStats.forEach(p => {
+    bo7PlayerRecords[p.player].totalRating += p.rating;
+    bo7PlayerRecords[p.player].gamesPlayed += 1;
+  });
+
+  // 加入全局 BP（第七場不記錄）
+  if (currentGameRound < 7) {
+    savedRoster.forEach(r => globalBannedHeroes.add(r.hero.name));
+  }
+
+  updateScoreboardUI();
+
+  // 判斷 Bo7 是否結束
+  const isSeriesOver = (blueWins === 4 || redWins === 4);
+
+  if (isSeriesOver) {
+    if (blueWins === 4) {
+      drawChampionshipPoster(ctx, true);
+      modalActionBtn.innerText = "🏆 登頂奪冠！再戰新賽季 ↺";
+      modalActionBtn.style.background = "#ffb800";
+      modalActionBtn.style.color = "#000";
+    } else {
+      drawChampionshipPoster(ctx, false);
+      modalActionBtn.innerText = "遺憾落敗，重新挑戰 Bo7 ↺";
+      modalActionBtn.style.background = "#30363d";
+      modalActionBtn.style.color = "#fff";
+    }
+  } else {
+    drawSingleGamePoster(ctx, simResult);
+    modalActionBtn.innerText = `進入 Game ${currentGameRound + 1} ➔`;
+    modalActionBtn.style.background = "#238636";
+    modalActionBtn.style.color = "#fff";
+  }
+}
+
+// 繪製單局結算海報
+function drawSingleGamePoster(ctx, simResult) {
   const { isVictory, playerStats, teamKills, teamDeaths } = simResult;
 
   ctx.fillStyle = "#0b0e14";
@@ -641,18 +787,17 @@ function generateMatchResultPoster() {
   ctx.fillRect(0, 0, 720, 150);
 
   ctx.fillStyle = "#ffffff";
-  ctx.font = "900 68px sans-serif";
+  ctx.font = "900 64px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(isVictory ? "VICTORY 勝利" : "DEFEAT 敗北", 360, 95);
+  ctx.fillText(isVictory ? `GAME ${currentGameRound} 獲勝` : `GAME ${currentGameRound} 告負`, 360, 95);
 
-  ctx.font = "bold 21px sans-serif";
+  ctx.font = "bold 20px sans-serif";
   ctx.fillStyle = isVictory ? "#a6e3a1" : "#f5c2e7";
-  ctx.fillText(`排位爭奪戰 · 團隊總比分 ${teamKills} : ${teamDeaths}`, 360, 134);
+  ctx.fillText(`當前系列賽總比分 【 ${blueWins} : ${redWins} 】 · 團隊人頭 ${teamKills} : ${teamDeaths}`, 360, 134);
 
   ctx.textAlign = "left";
   const startY = 175;
   const roleOrder = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
-  
   const sortedStats = roleOrder.map(r => playerStats.find(p => p.assignedRole === r));
 
   sortedStats.forEach((p, idx) => {
@@ -706,15 +851,143 @@ function generateMatchResultPoster() {
   ctx.textAlign = "center";
   ctx.fillStyle = "#8b949e";
   ctx.font = "17px sans-serif";
-  ctx.fillText(`重抽消耗：英雄 ${2 - heroRerollsLeft}/2 次 ｜ 玩家 ${2 - playerRerollsLeft}/2 次`, 360, 980);
-
-  ctx.fillStyle = "#58a6ff";
-  ctx.font = "17px sans-serif";
-  ctx.fillText("已更新！", 360, 1020);
+  ctx.fillText(`全局已封鎖 ${globalBannedHeroes.size} 隻英雄 ｜ 點擊下方按鈕繼續下一場`, 360, 995);
 }
 
-// 7. 重置整局遊戲
-function resetEntireGame() {
+// 繪製 Bo7 系列賽最終頒獎海報（勝者頒發 FMVP，敗者不顯示）
+function drawChampionshipPoster(ctx, isWinChampionship) {
+  ctx.fillStyle = "#0b0e14";
+  ctx.fillRect(0, 0, 720, 1060);
+
+  if (isWinChampionship) {
+    // 金色冠軍頂條
+    ctx.fillStyle = "#ffb800";
+    ctx.fillRect(0, 0, 720, 180);
+
+    ctx.fillStyle = "#000000";
+    ctx.font = "900 62px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("CHAMPIONS", 360, 90);
+
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(`🏆 2026 傳說對決 總冠軍 (${blueWins} : ${redWins})`, 360, 145);
+
+    // 計算 FMVP：勝場 MVP 最多者；若同分則比較平均評分
+    let fmvpPlayer = null;
+    let maxMvpCount = -1;
+    let maxAvgRating = -1;
+
+    PLAYERS.forEach(p => {
+      const rec = bo7PlayerRecords[p];
+      const avg = rec.gamesPlayed > 0 ? (rec.totalRating / rec.gamesPlayed) : 0;
+      if (rec.mvpCount > maxMvpCount || (rec.mvpCount === maxMvpCount && avg > maxAvgRating)) {
+        maxMvpCount = rec.mvpCount;
+        maxAvgRating = avg;
+        fmvpPlayer = p;
+      }
+    });
+
+    // FMVP 專屬榮譽大卡
+    ctx.fillStyle = "#1c2128";
+    ctx.roundRect(40, 220, 640, 260, 16);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#ffb800";
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffb800";
+    ctx.font = "900 32px sans-serif";
+    ctx.fillText("👑 總決賽最有價值選手 (FMVP)", 360, 280);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 66px sans-serif";
+    ctx.fillText(fmvpPlayer, 360, 365);
+
+    ctx.font = "bold 22px sans-serif";
+    ctx.fillStyle = "#a6e3a1";
+    ctx.fillText(`系列賽斬獲 ${maxMvpCount} 次單局 MVP ｜ 場均評分 ${maxAvgRating.toFixed(1)}`, 360, 420);
+
+    // 系列賽英雄數據
+    ctx.fillStyle = "#161b22";
+    ctx.roundRect(40, 520, 640, 440, 16);
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#30363d";
+    ctx.stroke();
+
+    ctx.fillStyle = "#58a6ff";
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText("🎖️ 系列賽榮譽英雄池", 360, 570);
+
+    ctx.fillStyle = "#c9d1d9";
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`全隊通力合作鏖戰 ${currentGameRound} 局`, 360, 620);
+    ctx.fillText(`深度英雄海：共解鎖征戰 ${globalBannedHeroes.size} 位不同英雄！`, 360, 660);
+
+    // 列出部分代表性英雄
+    const heroArray = Array.from(globalBannedHeroes).slice(0, 18);
+    ctx.font = "18px sans-serif";
+    ctx.fillStyle = "#ffb800";
+    ctx.fillText(heroArray.slice(0, 6).join("  •  "), 360, 730);
+    ctx.fillText(heroArray.slice(6, 12).join("  •  "), 360, 775);
+    if (heroArray.length > 12) {
+      ctx.fillText(heroArray.slice(12, 18).join("  •  "), 360, 820);
+    }
+
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "18px sans-serif";
+    ctx.fillText("長按海報儲存榮譽冠軍戰報，分享奪冠時刻！", 360, 910);
+
+  } else {
+    // 遺憾落敗（不頒發 FMVP）
+    ctx.fillStyle = "#da3633";
+    ctx.fillRect(0, 0, 720, 180);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 60px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("RUNNER-UP 亞軍", 360, 95);
+
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(`總比分 【 ${blueWins} : ${redWins} 】 憾負對手`, 360, 145);
+
+    ctx.fillStyle = "#161b22";
+    ctx.roundRect(40, 240, 640, 660, 16);
+    ctx.fill();
+
+    ctx.fillStyle = "#f85149";
+    ctx.font = "bold 30px sans-serif";
+    ctx.fillText("遺憾止步總決賽舞台", 360, 360);
+
+    ctx.fillStyle = "#c9d1d9";
+    ctx.font = "22px sans-serif";
+    ctx.fillText(`在 Bo7 的強烈爭奪中戰至第 ${currentGameRound} 局`, 360, 440);
+    ctx.fillText("全局 BP 英雄池深度面臨考驗", 360, 490);
+    ctx.fillText(`共動用了 ${globalBannedHeroes.size} 位英雄出戰`, 360, 540);
+
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "20px sans-serif";
+    ctx.fillText("勝敗乃兵家常事，重整旗鼓再來一局！", 360, 650);
+  }
+}
+
+// 處理彈窗下一步按鈕
+function handleModalNextAction() {
+  const isSeriesOver = (blueWins === 4 || redWins === 4);
+  document.getElementById('resultModal').style.display = 'none';
+
+  if (isSeriesOver) {
+    // 重新開始整個 Bo7
+    resetEntireBo7();
+  } else {
+    // 進入下一小局
+    currentGameRound++;
+    setupNextGameRound();
+  }
+}
+
+// 準備下一局
+function setupNextGameRound() {
   heroRerollsLeft = 2;
   playerRerollsLeft = 2;
   lockedCount = 0;
@@ -726,12 +999,10 @@ function resetEntireGame() {
   currentCandidate = null;
   savedRoster = [];
 
-  document.getElementById('resultModal').style.display = 'none';
   stepIndicator.innerText = "0 / 5";
-  rerollHeroDisplay.innerText = "2";
-  rerollPlayerDisplay.innerText = "2";
+  updateScoreboardUI();
 
-  cardPrompt.innerText = "點擊下方按鈕開始抽取第 1 個位置";
+  cardPrompt.innerText = `Game ${currentGameRound} 開始！請抽取第 1 個位置`;
   cardPlayer.innerText = "─";
   cardHero.innerText = "等待抽籤";
   cardMeta.innerText = "尚未指定分路";
@@ -739,7 +1010,7 @@ function resetEntireGame() {
   decisionRow.style.display = "none";
   startDrawBtn.style.display = "block";
   startDrawBtn.disabled = false;
-  startDrawBtn.innerText = "🎰 抽取新組合 (玩家 + 英雄)";
+  startDrawBtn.innerText = `🎰 抽取 Game ${currentGameRound} 組合`;
   startDrawBtn.onclick = handleStartDraw;
 
   const ALL_ROLES = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
@@ -749,6 +1020,16 @@ function resetEntireGame() {
     document.getElementById(`val-${r}`).innerText = "未指派";
     document.getElementById(`val-${r}`).style.color = "#f0f6fc";
   });
+}
+
+// 重置整個 Bo7
+function resetEntireBo7() {
+  currentGameRound = 1;
+  blueWins = 0;
+  redWins = 0;
+  globalBannedHeroes.clear();
+  initBo7Stats();
+  setupNextGameRound();
 }
 </script>
 </body>
