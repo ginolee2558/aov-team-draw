@@ -595,10 +595,8 @@ function setupConnectionEvents() {
       document.getElementById('oppStatusText').innerText = "對手已完成陣容並就緒！";
       checkBothReady();
     } else if (data.type === 'MATCH_RESULT') {
-      // 紅方接收房主的模擬結果並渲染
       syncMatchOutcome(data.result);
     } else if (data.type === 'NEXT_ROUND') {
-      // 同步進入下一局
       currentGameRound = data.round;
       setupNextGameRound();
     } else if (data.type === 'RESET_BO7') {
@@ -806,7 +804,6 @@ function handleConfirmPick() {
   }
 }
 
-// 點擊準備就緒
 function handleReady() {
   myReady = true;
   readyBtn.disabled = true;
@@ -819,7 +816,6 @@ function handleReady() {
 function checkBothReady() {
   if (myReady && oppReady) {
     if (isHost) {
-      // 房主負責計算對局結果並推播給紅方
       const matchResult = simulatePvpMatch(myRoster, oppRoster);
       conn.send({ type: 'MATCH_RESULT', result: matchResult });
       syncMatchOutcome(matchResult);
@@ -878,18 +874,33 @@ function simulatePvpMatch(blueRoster, redRoster) {
   const blueStats = genStats(blueRoster, blueWinsThisGame, blueKills, redKills);
   const redStats = genStats(redRoster, !blueWinsThisGame, redKills, blueKills);
 
-  // 選出單局 MVP（獲勝隊伍評分最高者）
+  // 選出勝方 MVP 與敗方 MVP (SVP)
   const winTeamStats = blueWinsThisGame ? blueStats : redStats;
-  let mvpIdx = 0, maxR = -1;
+  const loseTeamStats = blueWinsThisGame ? redStats : blueStats;
+
+  let mvpIdx = 0, maxWinR = -1;
   winTeamStats.forEach((p, i) => {
-    if (p.rating > maxR) { maxR = p.rating; mvpIdx = i; }
+    if (p.rating > maxWinR) { maxWinR = p.rating; mvpIdx = i; }
   });
   winTeamStats[mvpIdx].isMvp = true;
 
-  return { blueWinsThisGame, blueKills, redKills, blueStats, redStats, mvpPlayer: winTeamStats[mvpIdx].player };
+  let svpIdx = 0, maxLoseR = -1;
+  loseTeamStats.forEach((p, i) => {
+    if (p.rating > maxLoseR) { maxLoseR = p.rating; svpIdx = i; }
+  });
+  loseTeamStats[svpIdx].isSvp = true;
+
+  return {
+    blueWinsThisGame,
+    blueKills,
+    redKills,
+    blueStats,
+    redStats,
+    mvpPlayer: winTeamStats[mvpIdx].player,
+    svpPlayer: loseTeamStats[svpIdx].player
+  };
 }
 
-// 取得奪冠方的 FMVP 姓名
 function getChampionFMVP(isBlueChampion) {
   const targetRecord = isBlueChampion ? bluePlayerStatsRecord : redPlayerStatsRecord;
   let fmvp = null, maxMvp = -1, maxRating = -1;
@@ -905,9 +916,8 @@ function getChampionFMVP(isBlueChampion) {
   return fmvp;
 }
 
-// 同步結果並繪製結算圖
 function syncMatchOutcome(result) {
-  const { blueWinsThisGame, blueKills, redKills, blueStats, redStats, mvpPlayer } = result;
+  const { blueWinsThisGame, blueStats, redStats, mvpPlayer } = result;
 
   if (blueWinsThisGame) {
     blueWins++;
@@ -917,7 +927,6 @@ function syncMatchOutcome(result) {
     redPlayerStatsRecord[mvpPlayer].mvpCount++;
   }
 
-  // 累計各方評分數據
   blueStats.forEach(p => {
     bluePlayerStatsRecord[p.player].totalRating += p.rating;
     bluePlayerStatsRecord[p.player].games++;
@@ -927,7 +936,6 @@ function syncMatchOutcome(result) {
     redPlayerStatsRecord[p.player].games++;
   });
 
-  // 紀錄我方全局 BP
   if (currentGameRound < 7) {
     myRoster.forEach(r => myBannedHeroes.add(r.hero.name));
   }
@@ -936,7 +944,6 @@ function syncMatchOutcome(result) {
   renderBo7MatchPoster(result);
 }
 
-// 繪製對決海報
 function renderBo7MatchPoster(result) {
   const canvas = document.getElementById('posterCanvas');
   const ctx = canvas.getContext('2d');
@@ -960,7 +967,6 @@ function renderBo7MatchPoster(result) {
   ctx.textAlign = "center";
   ctx.fillText(isMyWin ? `GAME ${currentGameRound} 獲勝` : `GAME ${currentGameRound} 告負`, 360, 85);
 
-  // 次標題：系列賽奪冠時直接文字呈現 FMVP 是誰
   ctx.font = "bold 21px sans-serif";
   if (isSeriesOver) {
     if (amIChampion) {
@@ -976,7 +982,6 @@ function renderBo7MatchPoster(result) {
     ctx.fillText(`系列賽比分 【 藍 ${blueWins} : ${redWins} 紅 】 · 本局比分 ${blueKills} : ${redKills}`, 360, 130);
   }
 
-  // 繪製雙方陣容摘要
   const roleOrder = ["凱薩路", "打野", "中路", "魔龍路", "輔助"];
 
   function drawTeamColumn(stats, startX, teamName, isBlue) {
@@ -993,8 +998,17 @@ function renderBo7MatchPoster(result) {
       ctx.roundRect(startX, y, 320, 142, 10);
       ctx.fill();
 
-      ctx.lineWidth = p.isMvp ? 2.5 : 1;
-      ctx.strokeStyle = p.isMvp ? "#f1e05a" : "#30363d";
+      // 邊框樣式：MVP 金色、SVP 紫色、其餘灰色
+      if (p.isMvp) {
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#f1e05a";
+      } else if (p.isSvp) {
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#d2a8ff";
+      } else {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#30363d";
+      }
       ctx.stroke();
 
       ctx.textAlign = "left";
@@ -1006,11 +1020,18 @@ function renderBo7MatchPoster(result) {
       ctx.font = "bold 21px sans-serif";
       ctx.fillText(`${p.player}`, startX + 80, y + 30);
 
+      // MVP / SVP 標記徽章
       if (p.isMvp) {
         ctx.fillStyle = "#f1e05a";
         ctx.font = "900 17px sans-serif";
         ctx.textAlign = "right";
         ctx.fillText("★ MVP", startX + 308, y + 30);
+        ctx.textAlign = "left";
+      } else if (p.isSvp) {
+        ctx.fillStyle = "#d2a8ff";
+        ctx.font = "900 17px sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText("★ SVP", startX + 308, y + 30);
         ctx.textAlign = "left";
       }
 
@@ -1034,7 +1055,14 @@ function renderBo7MatchPoster(result) {
       ctx.font = "900 19px sans-serif";
       ctx.fillText(p.kdaStr, startX + 55, y + 115);
 
-      ctx.fillStyle = p.isMvp ? "#f1e05a" : "#ffffff";
+      // 評分顏色
+      if (p.isMvp) {
+        ctx.fillStyle = "#f1e05a";
+      } else if (p.isSvp) {
+        ctx.fillStyle = "#d2a8ff";
+      } else {
+        ctx.fillStyle = "#ffffff";
+      }
       ctx.font = "900 20px sans-serif";
       ctx.fillText(p.rating.toFixed(1), startX + 230, y + 115);
     });
@@ -1043,7 +1071,6 @@ function renderBo7MatchPoster(result) {
   drawTeamColumn(blueStats, 25, "藍方陣容 (房主)", true);
   drawTeamColumn(redStats, 375, "紅方陣容 (挑戰者)", false);
 
-  // 底部文字與按鈕文字配置
   ctx.textAlign = "center";
   ctx.font = "17px sans-serif";
 
@@ -1075,7 +1102,6 @@ function renderBo7MatchPoster(result) {
   ctx.fillText("長按圖片可儲存對決戰報海報！", 360, 1030);
 }
 
-// 彈窗下一步按鈕
 function handleModalNextAction() {
   const isSeriesOver = (blueWins === 4 || redWins === 4);
   document.getElementById('resultModal').style.display = 'none';
@@ -1096,7 +1122,6 @@ function handleModalNextAction() {
   }
 }
 
-// 設置下一局
 function setupNextGameRound() {
   heroRerollsLeft = 2;
   playerRerollsLeft = 2;
@@ -1142,7 +1167,6 @@ function setupNextGameRound() {
   });
 }
 
-// 重置整個 Bo7
 function resetEntireBo7() {
   currentGameRound = 1;
   blueWins = 0;
